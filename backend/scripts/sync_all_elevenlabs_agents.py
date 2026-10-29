@@ -34,3 +34,4 @@ async def sync_all_agents():
                 print(f"[EXC] {domain_id}: {e}")
 
 asyncio.run(sync_all_agents())
+
