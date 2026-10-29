@@ -64,8 +64,8 @@ def get_groq_client() -> Optional[Groq]:
         return Groq(api_key=settings.GROQ_API_KEY)
     return None
 
-_cached_groq_model: Optional[str] = "llama-3.3-70b-versatile"
-_cached_fast_groq_model: Optional[str] = "llama-3.1-8b-instant"
+_cached_groq_model: Optional[str] = None
+_cached_fast_groq_model: Optional[str] = None
 
 def get_best_groq_model(client: Optional[Groq] = None) -> str:
     global _cached_groq_model
@@ -73,12 +73,13 @@ def get_best_groq_model(client: Optional[Groq] = None) -> str:
         return _cached_groq_model
     
     preferred_models = [
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.8-27b",
         "llama-3.3-70b-versatile",
         "llama-3.1-70b-versatile",
+        "openai/gpt-oss-20b",
         "llama3-70b-8192",
-        "qwen/qwen3.8-27b",
-        "openai/gpt-oss-120b",
-        "mixtral-8x7b-32768",
+        "allam-2-7b",
         "llama-3.1-8b-instant"
     ]
     if not client:
@@ -98,22 +99,24 @@ def get_best_groq_model(client: Optional[Groq] = None) -> str:
         except Exception as e:
             logger.warning(f"Could not list Groq models: {e}")
             
-    _cached_groq_model = "llama-3.3-70b-versatile"
+    _cached_groq_model = "openai/gpt-oss-120b"
     return _cached_groq_model
 
 def get_fast_groq_model(client: Optional[Groq] = None) -> str:
     """
     Ultra-Fast model for live conversational turns and multi-turn combat arena (<140ms latency).
-    Strictly prefers llama-3.1-8b-instant.
     """
     global _cached_fast_groq_model
     if _cached_fast_groq_model:
         return _cached_fast_groq_model
 
     fast_candidates = [
+        "openai/gpt-oss-20b",
         "llama-3.1-8b-instant",
+        "allam-2-7b",
+        "qwen/qwen3.8-27b",
         "llama3-8b-8192",
-        "gemma2-9b-it"
+        "openai/gpt-oss-120b"
     ]
     if not client:
         client = get_groq_client()
@@ -125,10 +128,14 @@ def get_fast_groq_model(client: Optional[Groq] = None) -> str:
                     _cached_fast_groq_model = candidate
                     logger.info(f"Using Fast Groq model for live turns: {_cached_fast_groq_model}")
                     return _cached_fast_groq_model
+            text_models = [m for m in available_ids if "whisper" not in m and "guard" not in m and "orpheus" not in m]
+            if text_models:
+                _cached_fast_groq_model = text_models[0]
+                return _cached_fast_groq_model
         except Exception as e:
             logger.warning(f"Could not list fast Groq models: {e}")
 
-    _cached_fast_groq_model = "llama-3.1-8b-instant"
+    _cached_fast_groq_model = "openai/gpt-oss-20b"
     return _cached_fast_groq_model
 
 def generate_pydantic_literal_code(domain_name: str, items: List[CatalogItem]) -> str:
