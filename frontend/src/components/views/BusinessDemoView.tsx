@@ -271,7 +271,7 @@ function LivePhoneCallModalInner({
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "hi-IN";
       utterance.pitch = 1.0;
-      utterance.rate = 1.0;
+      utterance.rate = 1.15; // 15% faster speech rate for sub-second snappy replies
       window.speechSynthesis.speak(utterance);
     }
   };
@@ -281,7 +281,16 @@ function LivePhoneCallModalInner({
     setErrorMessage(null);
     try {
       const { signed_url } = await fetchConvaiSignedUrl(activeDomain.id);
-      await (navigator.mediaDevices as any).getUserMedia({ audio: true });
+      // Hardware Acoustic Beamforming & Voice Focus Constraints
+      await (navigator.mediaDevices as any).getUserMedia({
+        audio: {
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: 48000 },
+        },
+      });
       await conversation.startSession({
         signedUrl: signed_url,
       });

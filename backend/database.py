@@ -1,13 +1,30 @@
 import json
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Optional
-from sqlalchemy import String, Text, DateTime, Integer, Float
+from sqlalchemy import String, Text, DateTime, Integer, Float, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from backend.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    connect_args={"timeout": 30.0}
+)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """
+    Enforce SQLite WAL mode and busy timeout to completely prevent 'database is locked' errors
+    under high-concurrency voice streaming turns.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.execute("PRAGMA cache_size=-64000")
+    cursor.close()
 
 class Base(DeclarativeBase):
     pass
@@ -110,6 +127,10 @@ class SystemSettingModel(Base):
 
 async def init_db():
     async with engine.begin() as conn:
+        from sqlalchemy import text
+        await conn.execute(text("PRAGMA journal_mode=WAL;"))
+        await conn.execute(text("PRAGMA synchronous=NORMAL;"))
+        await conn.execute(text("PRAGMA busy_timeout=30000;"))
         await conn.run_sync(Base.metadata.create_all)
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:

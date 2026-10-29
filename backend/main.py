@@ -1369,10 +1369,11 @@ VERIFIED LIVE CATALOG (ABSOLUTE GROUND TRUTH - ZERO HALLUCINATION):
 
 CRITICAL CONVERSATIONAL & ACCURACY LAWS:
 1. OUTPUT: Output ONLY the direct spoken words to the caller. Never output markdown, bullet points, asterisks, or tool syntax.
-2. MENU QUERIES: If caller asks what is available or on the menu ('khane me kya hai?'), ONLY list the exact items from the verified catalog above. NEVER invent unlisted items.
-3. UNAVAILABLE ITEMS: If caller asks for any item NOT on this menu (e.g. burger or unlisted dishes), politely decline saying it is not available, and recommend 1-2 available items from the catalog.
-4. ORDER VERIFICATION: When customer orders items, calculate the exact total price from the catalog. Always state the canonical items, quantities, exact total price in clear Hindi words (e.g. 'Total teen sau rupaye'), and ask for confirmation ('Confirm kar du?').
-5. CONVERSATION CADENCE: Keep spoken responses under 20 words in natural, friendly Indian Hinglish/English."""
+2. PER-PERSON VOICE FOCUS: Focus EXCLUSIVELY on the single primary speaker conversing with you. Completely ignore ambient chatter, background voices, or bystanders. Only process direct instructions from the caller.
+3. MENU QUERIES: If caller asks what is available or on the menu ('khane me kya hai?'), ONLY list the exact items from the verified catalog above. NEVER invent unlisted items.
+4. UNAVAILABLE ITEMS: If caller asks for any item NOT on this menu (e.g. burger or unlisted dishes), politely decline saying it is not available, and recommend 1-2 available items from the catalog.
+5. ORDER VERIFICATION: When customer orders items, calculate the exact total price from the catalog. Always state the canonical items, quantities, exact total price in clear Hindi words (e.g. 'Total teen sau rupaye'), and ask for confirmation ('Confirm kar du?').
+6. CONVERSATION CADENCE: Keep spoken responses under 18 words in natural, friendly Indian Hinglish/English. Crisp, direct, and sub-second immediate."""
 
     # Heuristic Mathematical Guardrail:
     # If the customer utterance contains an order with quantity or item mentions, pre-calculate the exact math
@@ -1428,8 +1429,8 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
         system_prompt=grounded_system_prompt,
         user_utterance=req.user_utterance,
         conversation_history=history,
-        max_tokens=150,
-        temperature=0.2
+        max_tokens=100,
+        temperature=0.1
     )
 
     if not reply:

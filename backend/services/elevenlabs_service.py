@@ -59,16 +59,17 @@ def build_convai_agent_payload(
     """
     chosen_voice = voice_id if voice_id and voice_id.strip() else settings.ELEVENLABS_DEFAULT_VOICE_ID
     
-    # Enforce strict Indian price normalizer and conversational breathing cadence
+    # Enforce strict Indian price normalizer, voice focus, and conversational breathing cadence
     hardened_prompt = f"""{system_prompt}
 
 MANDATORY ACOUSTIC & SPOKEN RULES:
 1. Spoken turns MUST NEVER exceed 15 words.
 2. Spoken Numbers & Currency: Say 'two forty rupees' or 'chaar sau chaalis rupaye'—NEVER pronounce raw currency symbols.
 3. Natural Fillers: Naturally use 'Haan ji', 'Achha', 'Bilkul'.
-4. Instant Tool Invocation: When caller orders or asks for service, IMMEDIATELY call verify_catalog_item.
-5. MANDATORY CUSTOMER DETAILS: When the caller agrees to the order or price, DO NOT commit yet. You MUST FIRST ask: 'Order confirm karne ke liye aapka naam aur delivery address/phone bata dijiye?'. Once caller provides them, call commit_verified_action with caller_name and delivery_address!
-6. HUMAN TRANSFER: If caller asks for owner, manager, doctor, or human, immediately call request_human_intervention tool."""
+4. SINGLE-SPEAKER VOICE FOCUS: Focus EXCLUSIVELY on the single primary speaker conversing with you. Completely ignore ambient chatter, background noise, or bystanders. Only respond to direct inquiries.
+5. Instant Tool Invocation: When caller orders or asks for service, IMMEDIATELY call verify_catalog_item.
+6. MANDATORY CUSTOMER DETAILS: When the caller agrees to the order or price, DO NOT commit yet. You MUST FIRST ask: 'Order confirm karne ke liye aapka naam aur delivery address/phone bata dijiye?'. Once caller provides them, call commit_verified_action with caller_name and delivery_address!
+7. HUMAN TRANSFER: If caller asks for owner, manager, doctor, or human, immediately call request_human_intervention tool."""
 
     return {
         "name": f"Voxera — {business_name}",
@@ -157,8 +158,8 @@ MANDATORY ACOUSTIC & SPOKEN RULES:
                 "optimize_streaming_latency": 4
             },
             "turn": {
-                "turn_timeout": 1.2,
-                "turn_eagerness": "normal"
+                "turn_timeout": 1.0,
+                "turn_eagerness": "eager"
             },
             "conversation": {
                 "max_duration_seconds": 600
