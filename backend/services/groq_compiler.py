@@ -104,19 +104,21 @@ def get_best_groq_model(client: Optional[Groq] = None) -> str:
 
 def get_fast_groq_model(client: Optional[Groq] = None) -> str:
     """
-    Ultra-Fast model for live conversational turns and multi-turn combat arena (<140ms latency).
+    Ultra-Fast model for live conversational turns and multi-turn combat arena (<180ms latency).
+    Prioritizes models with direct generation (qwen/qwen3.8-27b) over reasoning models (gpt-oss-20b)
+    to eliminate token starvation, empty responses, and long pauses.
     """
     global _cached_fast_groq_model
     if _cached_fast_groq_model:
         return _cached_fast_groq_model
 
     fast_candidates = [
-        "openai/gpt-oss-20b",
-        "llama-3.1-8b-instant",
-        "allam-2-7b",
         "qwen/qwen3.8-27b",
+        "llama-3.1-8b-instant",
         "llama3-8b-8192",
-        "openai/gpt-oss-120b"
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "allam-2-7b"
     ]
     if not client:
         client = get_groq_client()
@@ -135,7 +137,7 @@ def get_fast_groq_model(client: Optional[Groq] = None) -> str:
         except Exception as e:
             logger.warning(f"Could not list fast Groq models: {e}")
 
-    _cached_fast_groq_model = "openai/gpt-oss-20b"
+    _cached_fast_groq_model = "qwen/qwen3.8-27b"
     return _cached_fast_groq_model
 
 def generate_pydantic_literal_code(domain_name: str, items: List[CatalogItem]) -> str:
@@ -204,14 +206,29 @@ Parsed Catalog / Document Text:
         
         catalog_items = [CatalogItem(**item) for item in data.get("catalog_items", [])]
         strict_policies = [StrictPolicy(**pol) for pol in data.get("strict_policies", [])]
-        
+
+        # Ground system prompt with absolute catalog truth so the model NEVER invents items or prices
+        menu_summary = "\n".join([f"- {it.canonical_name}: ₹{int(it.price_inr)} ({it.category})" for it in catalog_items])
+        raw_prompt = data.get("system_prompt", "")
+        grounded_system_prompt = f"""{raw_prompt}
+
+VERIFIED LIVE CATALOG & PRICING (ABSOLUTE GROUND TRUTH - ZERO HALLUCINATION):
+{menu_summary if menu_summary else 'No items in catalog.'}
+
+CRITICAL BUSINESS & CONVERSATIONAL RULES:
+1. OUTPUT: Output ONLY the direct spoken words to the caller. Do not output markdown, bullet points, asterisks, or tool call syntax.
+2. MENU QUERIES: When caller asks what is on the menu or what items/services are available, ONLY mention the exact items listed above. NEVER invent or offer unlisted items.
+3. UNAVAILABLE ITEMS: If caller asks for any item NOT on this menu, politely inform them that it is not available, and recommend 1-2 available items from the catalog.
+4. ORDER VERIFICATION: When caller orders items, state the canonical item, quantity, and exact price, then ask for confirmation.
+5. CADENCE: Keep spoken responses under 20 words in natural, friendly Indian Hinglish/English."""
+
         pydantic_code = generate_pydantic_literal_code(business_name, catalog_items)
         tokens_used = completion.usage.total_tokens if completion.usage else 0
 
         return CompileDomainResponse(
             success=True,
             domain_id=business_name.lower().replace(" ", "-"),
-            system_prompt=data.get("system_prompt", ""),
+            system_prompt=grounded_system_prompt,
             first_message=data.get("first_message", f"Namaste, {business_name}! How may I help you?"),
             catalog_items=catalog_items,
             strict_policies=strict_policies,

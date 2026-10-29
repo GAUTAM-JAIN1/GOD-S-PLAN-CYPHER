@@ -313,7 +313,10 @@ function LivePhoneCallModalInner({
     setIsConnecting(false);
   };
 
-  const handleProcessUtterance = async (userText: string) => {
+  const handleProcessUtterance = async (
+    userText: string,
+    currentHistory?: Array<{ sender: "caller" | "agent"; text: string }>
+  ) => {
     const textLower = userText.toLowerCase();
 
     // Check goodbye phrase
@@ -331,10 +334,17 @@ function LivePhoneCallModalInner({
       return;
     }
 
+    const historyToUse = currentHistory || messages;
+    const formattedHistory = historyToUse.map((m) => ({
+      role: m.sender === "caller" ? "user" : "assistant",
+      content: m.text,
+    }));
+
     try {
       const res = await callVoiceLiveTurn({
         domain_id: activeDomain.id,
         user_utterance: userText,
+        conversation_history: formattedHistory,
       });
 
       if (res && res.reply) {

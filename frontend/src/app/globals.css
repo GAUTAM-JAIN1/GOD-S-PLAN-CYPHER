@@ -37,15 +37,12 @@ html, body {
   letter-spacing: -0.015em;
 }
 
-/* Apple Architectural Silver-White Glass Canvas with Subtle 3D Fluid Glass Environment */
+/* Apple Architectural Silver-White Glass Canvas with Pure Clean Glass Environment */
 .apple-glass-canvas {
   background-color: #F7F8FA;
   background-image: 
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(247, 248, 250, 0.6) 100%),
-    url('/voxera_hero_bg.jpg');
-  background-position: top center;
-  background-size: cover;
-  background-repeat: no-repeat;
+    radial-gradient(ellipse at 50% -10%, #FFFFFF 0%, #F7F8FA 50%, #E9EBEF 100%),
+    repeating-linear-gradient(90deg, rgba(213, 217, 223, 0.08) 0px, rgba(213, 217, 223, 0.08) 1px, transparent 1px, transparent 48px);
   background-attachment: fixed;
 }
 

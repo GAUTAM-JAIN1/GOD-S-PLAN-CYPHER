@@ -36,12 +36,12 @@ async def call_groq_agent_turn(
     system_prompt: str,
     user_utterance: str,
     conversation_history: Optional[List[Dict[str, str]]] = None,
-    max_tokens: int = 90,
-    temperature: float = 0.3
+    max_tokens: int = 180,
+    temperature: float = 0.2
 ) -> Tuple[str, int]:
     """
-    Calls Ultra-Fast Groq Target Agent (llama-3.1-8b-instant, temp 0.3, max_tokens 90)
-    for live conversational turns (<140ms latency).
+    Calls Ultra-Fast Groq Target Agent (qwen/qwen3.8-27b, temp 0.2, max_tokens 180)
+    for live conversational turns (<180ms latency).
     """
     t0 = time.perf_counter()
     client = get_groq_client()
@@ -52,11 +52,17 @@ async def call_groq_agent_turn(
     messages = [
         {
             "role": "system",
-            "content": f"{system_prompt}\n\nSTRICT REAL-TIME VOICE RULE: Keep response strictly under 15 words in natural conversational Indian Hinglish/English. Crisp and direct."
+            "content": f"{system_prompt}\n\nSTRICT REAL-TIME VOICE RULE: Output ONLY direct spoken words. Keep response strictly under 20 words in natural, friendly Indian Hinglish/English. Crisp and direct."
         }
     ]
     if conversation_history:
-        messages.extend(conversation_history)
+        # Normalize history to only include valid user/assistant messages
+        clean_hist = [
+            {"role": m.get("role", "user"), "content": m.get("content", "")}
+            for m in conversation_history
+            if m.get("content") and m.get("role") in ["user", "assistant", "system"]
+        ]
+        messages.extend(clean_hist)
     messages.append({"role": "user", "content": user_utterance})
 
     try:
@@ -70,6 +76,11 @@ async def call_groq_agent_turn(
         )
         latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
         resp_text = (completion.choices[0].message.content or "").strip()
+
+        # Clean any internal formatting or tool syntax
+        if "Spoken Response:" in resp_text:
+            resp_text = resp_text.split("Spoken Response:")[-1].strip()
+        resp_text = resp_text.replace("**", "").replace('"', "").strip()
         return resp_text, latency_ms
     except Exception as e:
         logger.warning(f"Groq agent turn failed ({e}), using fast linguistic fallback.")

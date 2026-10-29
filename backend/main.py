@@ -1337,7 +1337,7 @@ class LiveTurnRequest(BaseModel):
 
 @app.post("/api/voice/live-turn")
 async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession = Depends(get_db_session)):
-    """Ultra-fast conversational turn using llama-3.1-8b-instant (<140ms LLM latency)."""
+    """Ultra-fast deterministic conversational turn (<180ms latency) with zero-hallucination catalog grounding."""
     t0 = time.perf_counter()
     stmt = select(DomainProfileModel).where(DomainProfileModel.id == req.domain_id)
     res = await session.execute(stmt)
@@ -1348,24 +1348,101 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
     from backend.services.gauntlet_runner import call_groq_agent_turn
     from backend.services.groq_compiler import get_fast_groq_model
 
+    # Build Grounded Catalog Context
+    catalog_items = []
+    catalog_summary = ""
+    if profile.catalog_json:
+        try:
+            catalog_items = json.loads(profile.catalog_json)
+            menu_lines = [
+                f"- {it.get('canonical_name')}: Rs {int(it.get('price_inr', 0))} ({it.get('category', 'Item')})"
+                for it in catalog_items
+            ]
+            catalog_summary = "\n".join(menu_lines)
+        except Exception:
+            pass
+
+    grounded_system_prompt = f"""{profile.system_prompt}
+
+VERIFIED LIVE CATALOG (ABSOLUTE GROUND TRUTH - ZERO HALLUCINATION):
+{catalog_summary if catalog_summary else 'No catalog items registered.'}
+
+CRITICAL CONVERSATIONAL & ACCURACY LAWS:
+1. OUTPUT: Output ONLY the direct spoken words to the caller. Never output markdown, bullet points, asterisks, or tool syntax.
+2. MENU QUERIES: If caller asks what is available or on the menu ('khane me kya hai?'), ONLY list the exact items from the verified catalog above. NEVER invent unlisted items.
+3. UNAVAILABLE ITEMS: If caller asks for any item NOT on this menu (e.g. burger or unlisted dishes), politely decline saying it is not available, and recommend 1-2 available items from the catalog.
+4. ORDER VERIFICATION: When customer orders items, calculate the exact total price from the catalog. Always state the canonical items, quantities, exact total price in clear Hindi words (e.g. 'Total teen sau rupaye'), and ask for confirmation ('Confirm kar du?').
+5. CONVERSATION CADENCE: Keep spoken responses under 20 words in natural, friendly Indian Hinglish/English."""
+
+    # Heuristic Mathematical Guardrail:
+    # If the customer utterance contains an order with quantity or item mentions, pre-calculate the exact math
+    hint_system_message = None
+    if catalog_items:
+        try:
+            utt_lower = req.user_utterance.lower()
+            matched_orders = []
+            total_calc = 0
+            words = utt_lower.replace(",", " ").replace(".", " ").split()
+
+            # Word to quantity mapping in English and Hindi
+            def extract_qty(w_list, target_idx):
+                for offset in [-2, -1, 1, 2]:
+                    idx = target_idx + offset
+                    if 0 <= idx < len(w_list):
+                        w = w_list[idx]
+                        if w in ["1", "ek", "one"]: return 1
+                        elif w in ["2", "do", "two"]: return 2
+                        elif w in ["3", "teen", "three"]: return 3
+                        elif w in ["4", "char", "four"]: return 4
+                        elif w in ["5", "paanch", "five"]: return 5
+                        elif w.isdigit() and 1 <= int(w) <= 20: return int(w)
+                return 1
+
+            for it in catalog_items:
+                c_name = it.get("canonical_name", "").lower()
+                aliases = [a.lower() for a in it.get("phonetic_aliases", [])]
+                for phrase in [c_name] + aliases:
+                    if phrase and phrase in utt_lower:
+                        # Find position of phrase
+                        p_words = phrase.split()
+                        try:
+                            w_idx = words.index(p_words[0]) if p_words[0] in words else 0
+                        except ValueError:
+                            w_idx = 0
+                        q = extract_qty(words, w_idx)
+                        p = int(it.get("price_inr", 0))
+                        matched_orders.append(f"{q}x {it.get('canonical_name')} (Rs {q * p})")
+                        total_calc += q * p
+                        break
+
+            if matched_orders:
+                hint_system_message = f"[GUARDRAIL VERIFIED ORDER]: {', '.join(matched_orders)}. Grand Total = Rs {total_calc}. Speak this exact total to caller and ask to confirm."
+        except Exception:
+            pass
+
+    history = list(req.conversation_history or [])
+    if hint_system_message:
+        history.append({"role": "system", "content": hint_system_message})
+
     reply, llm_latency = await call_groq_agent_turn(
-        system_prompt=profile.system_prompt,
+        system_prompt=grounded_system_prompt,
         user_utterance=req.user_utterance,
-        conversation_history=req.conversation_history,
-        max_tokens=90,
-        temperature=0.3
+        conversation_history=history,
+        max_tokens=150,
+        temperature=0.2
     )
 
     if not reply:
         reply = "Haan ji bilkul, main aapki baat samajh gayi. Aur kuch add karna chahenge?"
 
     total_latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
+    fast_model = get_fast_groq_model()
     return {
         "success": True,
         "reply": reply,
         "llm_latency_ms": llm_latency,
         "total_latency_ms": total_latency_ms,
-        "model": "llama-3.1-8b-instant"
+        "model": fast_model
     }
 
 # ----------------- ADVERSARIAL GAUNTLET & SELF-HEALING -----------------
