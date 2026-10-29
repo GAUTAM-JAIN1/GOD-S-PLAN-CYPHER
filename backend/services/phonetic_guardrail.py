@@ -172,15 +172,33 @@ def calculate_entity_match_score(spoken_clean: str, item: CatalogItem) -> float:
         target_clean = target.lower().strip()
 
         # 1. Lexical Score (WRatio, token_sort_ratio, token_set_ratio, weighted partial_ratio)
-        w_ratio = fuzz.WRatio(spoken_clean, target_clean) / 100.0
+        raw_w_ratio = fuzz.WRatio(spoken_clean, target_clean) / 100.0
         sort_ratio = fuzz.token_sort_ratio(spoken_clean, target_clean) / 100.0
-        set_ratio = fuzz.token_set_ratio(spoken_clean, target_clean) / 100.0
+        raw_set_ratio = fuzz.token_set_ratio(spoken_clean, target_clean) / 100.0
+        
+        # Word coverage penalty: Prevents generic 1-word aliases (e.g. 'latte') from hijacking specific multi-word items (e.g. 'Matcha Green Tea Latte')
+        q_words = spoken_clean.split()
+        t_words = target_clean.split()
+        if len(q_words) > 1 and len(t_words) < len(q_words):
+            word_overlap = len(set(q_words) & set(t_words)) / len(q_words)
+            set_ratio = raw_set_ratio * (0.35 + 0.65 * word_overlap)
+            length_ratio = len(target_clean) / len(spoken_clean)
+            if length_ratio < 0.65:
+                w_ratio = raw_w_ratio * (0.45 + 0.55 * length_ratio)
+            else:
+                w_ratio = raw_w_ratio
+        else:
+            set_ratio = raw_set_ratio
+            w_ratio = raw_w_ratio
+
         raw_part_ratio = fuzz.partial_ratio(spoken_clean, target_clean) / 100.0
         
-        # Substring Probability Refinement: weight partial_ratio by length coverage
+        # Substring Probability Refinement: weight partial_ratio by symmetric length overlap
+        # Prevents short sub-word targets (e.g. 'latte') from matching 100% on long specific queries (e.g. 'matcha green tea latte')
         target_len = max(len(target_clean), 1)
         query_len = max(len(spoken_clean), 1)
-        coverage_factor = min(1.0, 0.70 + 0.30 * (query_len / target_len))
+        len_ratio = min(target_len, query_len) / max(target_len, query_len)
+        coverage_factor = min(1.0, 0.30 + 0.70 * len_ratio)
         weighted_part_ratio = raw_part_ratio * coverage_factor
         
         s_lex = max(w_ratio, sort_ratio, set_ratio * 0.95, weighted_part_ratio)

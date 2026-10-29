@@ -573,3 +573,13 @@ export async function callVoiceLiveTurn(data: {
   return res.json();
 }
 
+export async function runModule7Suite(domainId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/module7/run-all`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain_id: domainId }),
+  });
+  if (!res.ok) throw new Error("Failed to run Module 7 test suite");
+  return res.json();
+}
+

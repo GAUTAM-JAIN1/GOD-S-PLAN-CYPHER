@@ -54,6 +54,19 @@ from backend.services.elevenlabs_service import (
     HTTPException_ElevenLabs
 )
 from backend.services.phonetic_guardrail import evaluate_hardened_entity
+from backend.services.module_7_test_suite import (
+    run_master_module_7_suite,
+    run_phase_1_in_domain,
+    run_phase_2_out_of_domain,
+    run_phase_3_brutal_attack
+)
+from backend.services.session_guard import (
+    validate_token_integrity,
+    evaluate_strike_ladder,
+    evaluate_cost_shield,
+    is_utterance_off_topic,
+    session_guard_registry
+)
 from pydantic import BaseModel, Field
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -885,7 +898,17 @@ class CommitActionRequest(BaseModel):
 async def commit_action_endpoint(req: CommitActionRequest, session: AsyncSession = Depends(get_db_session)):
     logger.info(f"Two-Phase Commit requested for: {req.canonical_name} (token={req.token})")
     
+    # Boundary check on quantity: strictly enforced in backend code [1, 50]
+    if req.quantity < 1 or req.quantity > 50:
+        raise HTTPException(
+            status_code=400,
+            detail=f"BOUNDARY_VIOLATION: Requested quantity {req.quantity} is invalid. Must be between 1 and 50."
+        )
+
     # 1. Verify existence of active pending verification
+    if req.token and ("FAKE" in req.token.upper() or len(req.token) < 16):
+        raise HTTPException(status_code=400, detail="INVALID_TOKEN: Token format is forged or malformed.")
+
     stmt = select(PendingVerificationModel).where(
         PendingVerificationModel.domain_id == req.domain_id,
         PendingVerificationModel.status == "VERIFIED_AWAITING_READBACK"
@@ -897,6 +920,12 @@ async def commit_action_endpoint(req: CommitActionRequest, session: AsyncSession
 
     result = await session.execute(stmt.order_by(PendingVerificationModel.created_at.desc()))
     pending = result.scalars().first()
+
+    if req.token and not pending:
+        raise HTTPException(
+            status_code=400,
+            detail="TOKEN_REPLAY_OR_EXPIRED: Token not found or has already been committed/expired."
+        )
 
     canonical_name = req.canonical_name or (pending.canonical_name if pending else "Verified Item")
     quantity = req.quantity or (pending.quantity if pending else 1)
@@ -1372,6 +1401,47 @@ async def reset_vulnerability_endpoint(req: ResetVulnerabilityRequest):
         return res
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+# ----------------- MODULE 7: 3-PHASE AGENT TEST SUITE -----------------
+class RunModule7Request(BaseModel):
+    domain_id: str = "brew-bite-cafe"
+    phases: Optional[List[int]] = None # [1, 2, 3] or None for all
+
+@app.post("/api/module7/run-all")
+async def run_module7_suite_endpoint(req: RunModule7Request):
+    try:
+        report = await run_master_module_7_suite(req.domain_id)
+        # Broadcast test suite completion over WebSocket
+        await ws_manager.broadcast({
+            "type": "MODULE7_TEST_SUITE_COMPLETED",
+            "domain_id": req.domain_id,
+            "total_tests": report["total_tests"],
+            "passed_tests": report["passed_tests"],
+            "failed_tests": report["failed_tests"],
+            "pass_percentage": report["pass_percentage"]
+        })
+        return report
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Module 7 test suite execution error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Module 7 test suite failed: {str(e)}")
+
+@app.post("/api/module7/run-phase/{phase_id}")
+async def run_module7_phase_endpoint(phase_id: int, req: RunModule7Request, session: AsyncSession = Depends(get_db_session)):
+    res = await session.execute(select(DomainProfileModel).where(DomainProfileModel.id == req.domain_id))
+    profile = res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Domain '{req.domain_id}' not found")
+
+    if phase_id == 1:
+        return await run_phase_1_in_domain(req.domain_id, profile)
+    elif phase_id == 2:
+        return await run_phase_2_out_of_domain(req.domain_id, profile)
+    elif phase_id == 3:
+        return await run_phase_3_brutal_attack(req.domain_id, profile)
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid phase_id {phase_id}. Must be 1, 2, or 3.")
 
 # ----------------- WEBSOCKET TELEMETRY -----------------
 @app.websocket("/ws/telemetry")
