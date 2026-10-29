@@ -8,8 +8,6 @@ import {
   FileCode,
   Layers,
   Database,
-  Cpu,
-  Sparkles,
   Smartphone
 } from "lucide-react";
 import { DomainProfile } from "@/lib/api";
@@ -36,65 +34,65 @@ export const DeveloperWorkbenchView: React.FC<DeveloperWorkbenchViewProps> = ({
   const [showPairingModal, setShowPairingModal] = useState<boolean>(false);
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#09090b] text-[#f4f4f6] overflow-hidden">
-      {/* Dev Navigation Sub-bar */}
-      <div className="h-11 min-h-[44px] px-6 border-b border-[#1f1f24] bg-[#0d0d10] flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+    <div className="w-full h-full flex flex-col apple-glass-canvas text-[#151619] overflow-hidden">
+      {/* Dev Navigation Sub-bar (Apple Monochrome Glass) */}
+      <div className="h-11 min-h-[44px] px-6 border-b border-[#E9EBEF] bg-white/70 backdrop-blur-md flex items-center justify-between">
+        <div className="flex items-center space-x-1.5">
           <button
             onClick={() => setDevTab("spec")}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               devTab === "spec"
-                ? "bg-[#181820] text-[#f4f4f6] border border-[#2d2d38] shadow-sm"
-                : "text-[#9494a0] hover:text-[#f4f4f6]"
+                ? "bg-[#151619] text-white shadow-xs"
+                : "text-[#737B8B] hover:text-[#151619] hover:bg-[#F7F8FA]"
             }`}
           >
-            <Code className="w-3.5 h-3.5 text-[#38bdf8]" />
-            <span>01. Prompt & Catalog Compiler</span>
+            <Code className="w-3.5 h-3.5" />
+            <span>01. Compiler</span>
           </button>
 
           <button
             onClick={() => setDevTab("flow")}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               devTab === "flow"
-                ? "bg-[#181820] text-[#f4f4f6] border border-[#2d2d38] shadow-sm"
-                : "text-[#9494a0] hover:text-[#f4f4f6]"
+                ? "bg-[#151619] text-white shadow-xs"
+                : "text-[#737B8B] hover:text-[#151619] hover:bg-[#F7F8FA]"
             }`}
           >
-            <GitBranch className="w-3.5 h-3.5 text-[#10b981]" />
-            <span>02. Deterministic State Machine</span>
+            <GitBranch className="w-3.5 h-3.5" />
+            <span>02. State Machine</span>
           </button>
 
           <button
             onClick={() => setDevTab("whisper")}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               devTab === "whisper"
-                ? "bg-[#181820] text-[#f4f4f6] border border-[#2d2d38] shadow-sm"
-                : "text-[#9494a0] hover:text-[#f4f4f6]"
+                ? "bg-[#151619] text-white shadow-xs"
+                : "text-[#737B8B] hover:text-[#151619] hover:bg-[#F7F8FA]"
             }`}
           >
-            <Radio className="w-3.5 h-3.5 text-[#f59e0b]" />
-            <span>03. Live Whisper Gate & SLA</span>
+            <Radio className="w-3.5 h-3.5" />
+            <span>03. Whisper Gate & SLA</span>
           </button>
 
           <button
             onClick={() => setDevTab("ledger")}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-all ${
               devTab === "ledger"
-                ? "bg-[#181820] text-[#f4f4f6] border border-[#2d2d38] shadow-sm"
-                : "text-[#9494a0] hover:text-[#f4f4f6]"
+                ? "bg-[#151619] text-white shadow-xs"
+                : "text-[#737B8B] hover:text-[#151619] hover:bg-[#F7F8FA]"
             }`}
           >
-            <Database className="w-3.5 h-3.5 text-[#a78bfa]" />
-            <span>04. SQLite Ledger & Cryptographic Token</span>
+            <Database className="w-3.5 h-3.5" />
+            <span>04. SQLite Ledger</span>
           </button>
         </div>
 
         {/* Telegram Pairing Button */}
         <button
           onClick={() => setShowPairingModal(true)}
-          className="flex items-center space-x-1.5 px-3 py-1 rounded-md bg-[#16161e] border border-[#262635] hover:bg-[#1f1f2c] text-xs font-mono text-[#9494a0] hover:text-[#f4f4f6] transition-colors"
+          className="btn-apple-secondary px-3 py-1 text-xs flex items-center space-x-1.5"
         >
-          <Smartphone className="w-3.5 h-3.5 text-[#38bdf8]" />
+          <Smartphone className="w-3.5 h-3.5 text-[#151619]" />
           <span>Pair Telegram Bot</span>
         </button>
       </div>
@@ -103,7 +101,7 @@ export const DeveloperWorkbenchView: React.FC<DeveloperWorkbenchViewProps> = ({
       <div className="flex-1 w-full overflow-hidden flex">
         {devTab === "spec" && (
           <div className="w-full h-full flex">
-            <div className="w-full max-w-[420px] h-full border-r border-[#1f1f24]">
+            <div className="w-full max-w-[400px] h-full border-r border-[#E9EBEF] bg-white/50">
               <AgentSpecPane
                 domains={domains}
                 activeDomain={activeDomain}
@@ -111,17 +109,18 @@ export const DeveloperWorkbenchView: React.FC<DeveloperWorkbenchViewProps> = ({
                 onDomainUpdated={onDomainUpdated}
               />
             </div>
-            <div className="flex-1 h-full overflow-y-auto p-6 bg-[#0c0c0e]">
-              <div className="max-w-4xl mx-auto space-y-5">
-                <div className="p-5 rounded-2xl bg-[#121217] border border-[#22222b]">
-                  <h3 className="text-sm font-bold text-[#f4f4f6] flex items-center space-x-2">
-                    <FileCode className="w-4 h-4 text-[#10b981]" />
+            <div className="flex-1 h-full overflow-y-auto p-6 bg-[#F7F8FA]/50">
+              <div className="max-w-4xl mx-auto space-y-4">
+                {/* Dynamic Pydantic Literal Validation Schema */}
+                <div className="p-5 rounded-2xl apple-glass-card space-y-2">
+                  <h3 className="text-sm font-semibold text-[#151619] flex items-center space-x-2">
+                    <FileCode className="w-4 h-4 text-[#151619]" />
                     <span>Dynamic Pydantic Literal Validation Schema</span>
                   </h3>
-                  <p className="text-xs text-[#9494a0] mt-1">
+                  <p className="text-xs text-[#737B8B]">
                     Generated dynamically from the compiled catalog. Every spoken turn must resolve to these literal enum types.
                   </p>
-                  <pre className="mt-3 p-4 rounded-xl bg-[#09090b] border border-[#1f1f26] text-xs font-mono text-[#34d399] overflow-x-auto leading-relaxed">
+                  <pre className="mt-2 p-4 rounded-xl bg-white border border-[#E9EBEF] text-xs font-mono text-[#151619] overflow-x-auto leading-relaxed shadow-xs">
 {`# Dynamically Compiled Pydantic Enum for ${activeDomain?.name || "Brew & Bite"}
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -141,19 +140,19 @@ class VerifiedActionModel(BaseModel):
                 </div>
 
                 {/* Strict Policies Box */}
-                <div className="p-5 rounded-2xl bg-[#121217] border border-[#22222b]">
-                  <h3 className="text-sm font-bold text-[#f4f4f6] flex items-center space-x-2">
-                    <Layers className="w-4 h-4 text-[#f59e0b]" />
+                <div className="p-5 rounded-2xl apple-glass-card space-y-2">
+                  <h3 className="text-sm font-semibold text-[#151619] flex items-center space-x-2">
+                    <Layers className="w-4 h-4 text-[#151619]" />
                     <span>Compiled Strict Policies & Guardrail Invariants</span>
                   </h3>
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-2 space-y-1.5">
                     {activeDomain?.strict_policies?.map((pol, idx) => (
                       <div
                         key={idx}
-                        className="p-3 rounded-xl bg-[#16161e] border border-[#232330] flex items-center justify-between text-xs"
+                        className="p-3 rounded-xl bg-white border border-[#E9EBEF] flex items-center justify-between text-xs shadow-xs"
                       >
-                        <span className="text-[#f4f4f6]">{pol.rule}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#ef4444]/20 text-[#ef4444]">
+                        <span className="text-[#151619] font-medium">{pol.rule}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-[#F7F8FA] border border-[#E9EBEF] text-[#34373D]">
                           {pol.severity}
                         </span>
                       </div>
@@ -173,7 +172,7 @@ class VerifiedActionModel(BaseModel):
 
         {devTab === "whisper" && (
           <div className="w-full h-full flex">
-            <div className="w-[480px] h-full border-r border-[#1f1f24]">
+            <div className="w-[460px] h-full border-r border-[#E9EBEF]">
               <LiveWhisperGatePane />
             </div>
             <div className="flex-1 h-full">

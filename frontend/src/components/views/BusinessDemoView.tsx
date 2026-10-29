@@ -10,16 +10,13 @@ import {
   ShieldCheck,
   Sparkles,
   Bot,
-  Check,
   X,
-  ArrowDown,
   Send,
   Plus,
   Trash2,
   ListPlus,
   Loader2,
   RefreshCw,
-  SlidersHorizontal,
   Mic,
   MicOff,
   Radio,
@@ -97,7 +94,7 @@ interface BusinessDemoViewProps {
 }
 
 // -------------------------------------------------------------
-// Live Phone Call Modal Inner (With Text Chat + Real Hangup)
+// Live Phone Call Modal Inner (Apple Monochrome Glass Sheet)
 // -------------------------------------------------------------
 function LivePhoneCallModalInner({
   activeDomain,
@@ -258,7 +255,7 @@ function LivePhoneCallModalInner({
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "hi-IN";
-      utterance.pitch = 1.05;
+      utterance.pitch = 1.0;
       utterance.rate = 1.0;
       window.speechSynthesis.speak(utterance);
     }
@@ -395,27 +392,27 @@ function LivePhoneCallModalInner({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="relative w-full max-w-xl rounded-3xl bg-white/95 border border-white/80 shadow-2xl overflow-hidden flex flex-col h-[640px]">
+    <div className="fixed inset-0 z-50 bg-[#151619]/25 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="relative w-full max-w-xl rounded-3xl bg-white border border-[#E9EBEF] shadow-2xl overflow-hidden flex flex-col h-[620px]">
         {/* Header */}
-        <div className="px-6 py-4 bg-neutral-50/90 border-b border-neutral-200/80 flex items-center justify-between">
+        <div className="px-6 py-4 bg-[#F7F8FA] border-b border-[#E9EBEF] flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600">
-              <Volume2 className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-white border border-[#E9EBEF] flex items-center justify-center text-[#151619] shadow-xs">
+              <Volume2 className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-sm font-bold text-neutral-900 tracking-tight">
+                <h3 className="text-sm font-semibold text-[#151619] tracking-tight">
                   {activeDomain.name}
                 </h3>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200">
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-white text-[#737B8B] border border-[#E9EBEF]">
                   {activeDomain.domain_type}
                 </span>
               </div>
-              <div className="text-xs text-neutral-500 flex items-center space-x-2 mt-0.5">
+              <div className="text-xs text-[#737B8B] flex items-center space-x-2 mt-0.5">
                 <span
-                  className={`w-2 h-2 rounded-full ${
-                    isConnected ? "bg-emerald-500 animate-pulse" : "bg-neutral-400"
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isConnected ? "mono-live-dot" : "bg-[#B8BEC7]"
                   }`}
                 />
                 <span>
@@ -451,7 +448,7 @@ function LivePhoneCallModalInner({
                       {
                         sender: "agent",
                         text: "Manager ko alert bhej diya hai, wo live audio line takeover kar rahe hain.",
-                        tag: "🚨 Live Call Takeover Alert Sent to Owner via Telegram",
+                        tag: "Live Call Takeover Alert Sent to Owner via Telegram",
                       },
                     ]);
                     speakText("Manager ko alert bhej diya hai, wo live audio line takeover kar rahe hain.");
@@ -459,17 +456,17 @@ function LivePhoneCallModalInner({
                     console.error("Takeover alert error:", e);
                   }
                 }}
-                className="px-3 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 text-xs font-semibold flex items-center space-x-1.5 transition-all"
+                className="btn-apple-secondary px-3 py-1 text-xs flex items-center space-x-1.5"
                 title="Send Live Call Takeover Alert to Owner's Telegram"
               >
-                <Radio className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <Radio className="w-3.5 h-3.5 text-[#151619]" />
                 <span>Takeover</span>
               </button>
             )}
             {isConnected && (
               <button
                 onClick={handleEndCall}
-                className="px-3 py-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-all"
+                className="px-3 py-1 rounded-full bg-[#151619] hover:bg-[#34373D] text-white text-xs font-medium flex items-center space-x-1.5 transition-all shadow-xs"
               >
                 <PhoneOff className="w-3.5 h-3.5" />
                 <span>End</span>
@@ -480,15 +477,15 @@ function LivePhoneCallModalInner({
                 if (isConnected) handleEndCall();
                 onClose();
               }}
-              className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-800 transition-colors"
+              className="w-7 h-7 rounded-full bg-white hover:bg-[#E9EBEF] border border-[#E9EBEF] flex items-center justify-center text-[#737B8B] hover:text-[#151619] transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
         {/* Message Stream */}
-        <div ref={scrollContainerRef} className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-neutral-50/50">
+        <div ref={scrollContainerRef} className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-[#F7F8FA]/60">
           {messages.map((m, idx) => (
             <div
               key={idx}
@@ -496,20 +493,20 @@ function LivePhoneCallModalInner({
                 m.sender === "caller" ? "items-end" : "items-start"
               }`}
             >
-              <span className="text-[11px] text-neutral-400 font-medium mb-1 px-1">
+              <span className="text-[10px] text-[#737B8B] font-medium mb-1 px-1">
                 {m.sender === "caller" ? "You (Customer)" : activeDomain.name}
               </span>
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-sm ${
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed ${
                   m.sender === "caller"
-                    ? "bg-neutral-900 text-white rounded-tr-none"
-                    : "bg-white text-neutral-800 border border-neutral-200/80 rounded-tl-none"
+                    ? "bg-[#151619] text-white rounded-tr-none shadow-xs"
+                    : "bg-white text-[#151619] border border-[#E9EBEF] rounded-tl-none shadow-xs"
                 }`}
               >
                 {m.text}
                 {m.tag && (
-                  <div className="mt-2 pt-2 border-t border-neutral-100 text-[11px] font-mono text-emerald-600 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3 h-3" />
+                  <div className="mt-2 pt-2 border-t border-[#E9EBEF] text-[11px] font-mono text-[#34373D] flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-3 h-3 text-[#151619]" />
                     <span>{m.tag}</span>
                   </div>
                 )}
@@ -519,14 +516,14 @@ function LivePhoneCallModalInner({
           <div ref={messagesEndRef} />
 
           {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+            <div className="p-3 rounded-xl bg-white border border-[#D5D9DF] text-xs text-[#34373D]">
               {errorMessage}
             </div>
           )}
         </div>
 
         {/* Text Chat Input Bar */}
-        <div className="px-5 py-3 bg-white border-t border-neutral-200">
+        <div className="px-5 py-3 bg-white border-t border-[#E9EBEF]">
           <form
             onSubmit={handleSendTextMessage}
             className="flex items-center space-x-2"
@@ -536,12 +533,12 @@ function LivePhoneCallModalInner({
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Type a message (e.g. 2 cold brew parcel kar do)..."
-              className="flex-1 px-4 py-2.5 rounded-full bg-neutral-100 border border-neutral-200 text-xs sm:text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors"
+              className="flex-1 px-4 py-2 rounded-full bg-[#F7F8FA] border border-[#E9EBEF] text-xs sm:text-sm text-[#151619] placeholder-[#9EA5B0] focus:outline-none focus:border-[#151619] transition-colors"
             />
             <button
               type="submit"
               disabled={!chatInput.trim()}
-              className="btn-pill-primary px-4 py-2 text-xs flex items-center space-x-1.5 disabled:opacity-40"
+              className="btn-apple-primary px-4 py-2 text-xs flex items-center space-x-1.5 disabled:opacity-30"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Send</span>
@@ -550,12 +547,12 @@ function LivePhoneCallModalInner({
         </div>
 
         {/* Controls Footer */}
-        <div className="p-4 bg-neutral-50/90 border-t border-neutral-200 flex items-center space-x-3">
+        <div className="p-4 bg-[#F7F8FA] border-t border-[#E9EBEF] flex items-center space-x-3">
           {!isConnected ? (
             <button
               onClick={handleStartCall}
               disabled={isConnecting}
-              className="btn-pill-primary flex-1 py-3 text-xs sm:text-sm flex items-center justify-center space-x-2 disabled:opacity-50"
+              className="btn-apple-primary flex-1 py-2.5 text-xs sm:text-sm flex items-center justify-center space-x-2 disabled:opacity-40"
             >
               {isConnecting ? (
                 <>
@@ -572,7 +569,7 @@ function LivePhoneCallModalInner({
           ) : (
             <button
               onClick={handleEndCall}
-              className="flex-1 py-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all shadow-md shadow-rose-600/20 active:scale-95"
+              className="flex-1 py-2.5 rounded-full bg-[#151619] hover:bg-[#34373D] text-white font-medium text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all shadow-xs"
             >
               <PhoneOff className="w-4 h-4" />
               <span>End Call Now</span>
@@ -584,7 +581,7 @@ function LivePhoneCallModalInner({
               if (isConnected) handleEndCall();
               onClose();
             }}
-            className="btn-pill-glass px-5 py-3 text-xs font-semibold"
+            className="btn-apple-secondary px-5 py-2.5 text-xs font-medium"
           >
             Close
           </button>
@@ -608,7 +605,7 @@ function LivePhoneCallModal(props: {
 }
 
 // -------------------------------------------------------------
-// Catalog Editor Modal (For Adding Custom Menus & Price Lists)
+// Catalog Editor Modal (Apple Monochrome Glass Sheet)
 // -------------------------------------------------------------
 interface CatalogEditorModalProps {
   isOpen: boolean;
@@ -648,24 +645,24 @@ function CatalogEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white/95 border border-white/80 shadow-2xl p-6 space-y-5">
-        <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
+    <div className="fixed inset-0 z-50 bg-[#151619]/25 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="w-full max-w-lg rounded-3xl bg-white border border-[#E9EBEF] shadow-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between border-b border-[#E9EBEF] pb-3">
           <div className="flex items-center space-x-2">
-            <ListPlus className="w-5 h-5 text-emerald-600" />
-            <h3 className="text-sm font-bold text-neutral-900">Custom Business Catalog / Menu</h3>
+            <ListPlus className="w-4 h-4 text-[#151619]" />
+            <h3 className="text-sm font-semibold text-[#151619]">Custom Business Catalog / Menu</h3>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-800"
+            className="w-7 h-7 rounded-full bg-[#F7F8FA] hover:bg-[#E9EBEF] border border-[#E9EBEF] flex items-center justify-center text-[#737B8B] hover:text-[#151619]"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
         {/* Add single item form */}
         <form onSubmit={handleAdd} className="space-y-3">
-          <span className="text-xs text-neutral-500 font-medium block">
+          <span className="text-xs text-[#737B8B] font-medium block">
             Add Single Item or Service:
           </span>
           <div className="grid grid-cols-12 gap-2">
@@ -674,18 +671,18 @@ function CatalogEditorModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Item name (e.g. Margherita Pizza)"
-              className="col-span-6 px-3.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900"
+              className="col-span-6 px-3.5 py-2 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] text-xs text-[#151619] placeholder-[#9EA5B0] focus:outline-none focus:border-[#151619]"
             />
             <input
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="Price ₹"
-              className="col-span-3 px-3.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900"
+              className="col-span-3 px-3.5 py-2 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] text-xs text-[#151619] placeholder-[#9EA5B0] focus:outline-none focus:border-[#151619]"
             />
             <button
               type="submit"
-              className="btn-pill-primary col-span-3 py-2 text-xs flex items-center justify-center space-x-1"
+              className="btn-apple-primary col-span-3 py-2 text-xs flex items-center justify-center space-x-1"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add</span>
@@ -696,28 +693,28 @@ function CatalogEditorModal({
         {/* Existing Items List */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-neutral-500 font-medium">
+            <span className="text-xs text-[#737B8B] font-medium">
               Configured Items ({items.length})
             </span>
-            <span className="text-[11px] text-emerald-600 font-mono font-semibold">Pydantic Locked</span>
+            <span className="text-[11px] text-[#34373D] font-mono font-medium">Pydantic Locked</span>
           </div>
-          <div className="max-h-44 overflow-y-auto space-y-1.5 border border-neutral-200 rounded-2xl p-2 bg-neutral-50">
+          <div className="max-h-44 overflow-y-auto space-y-1.5 border border-[#E9EBEF] rounded-2xl p-2 bg-[#F7F8FA]">
             {items.length === 0 ? (
-              <div className="text-center py-4 text-xs text-neutral-400">
+              <div className="text-center py-4 text-xs text-[#9EA5B0]">
                 No items added yet. Add items above or paste catalog below.
               </div>
             ) : (
               items.map((it, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-neutral-200/80 text-xs shadow-xs"
+                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-[#E9EBEF] text-xs shadow-xs"
                 >
-                  <span className="font-medium text-neutral-800">{it.canonical_name}</span>
+                  <span className="font-medium text-[#151619]">{it.canonical_name}</span>
                   <div className="flex items-center space-x-2">
-                    <span className="font-mono text-emerald-600 font-semibold">₹{it.price_inr}</span>
+                    <span className="font-mono text-[#34373D] font-semibold">₹{it.price_inr}</span>
                     <button
                       onClick={() => onRemoveItem(idx)}
-                      className="text-neutral-400 hover:text-rose-500 transition-colors"
+                      className="text-[#9EA5B0] hover:text-[#151619] transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -730,7 +727,7 @@ function CatalogEditorModal({
 
         {/* Or paste raw text */}
         <div>
-          <span className="text-xs text-neutral-500 font-medium block mb-1">
+          <span className="text-xs text-[#737B8B] font-medium block mb-1">
             Or Paste Full Menu / Price List (Llama-3.3 will auto-extract):
           </span>
           <textarea
@@ -738,13 +735,13 @@ function CatalogEditorModal({
             onChange={(e) => onRawTextChange(e.target.value)}
             placeholder="e.g.&#10;1. Farmhouse Pizza - Rs 420&#10;2. Garlic Breadsticks - Rs 180&#10;3. Choco Lava Cake - Rs 120"
             rows={3}
-            className="w-full px-3.5 py-2.5 rounded-2xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900 resize-none font-mono"
+            className="w-full px-3.5 py-2.5 rounded-2xl bg-[#F7F8FA] border border-[#E9EBEF] text-xs text-[#151619] placeholder-[#9EA5B0] focus:outline-none focus:border-[#151619] resize-none font-mono"
           />
         </div>
 
         <button
           onClick={onClose}
-          className="btn-pill-glass w-full py-2.5 text-xs font-semibold"
+          className="btn-apple-secondary w-full py-2.5 text-xs font-medium"
         >
           Done Configuring Catalog ({items.length} items ready)
         </button>
@@ -754,7 +751,7 @@ function CatalogEditorModal({
 }
 
 // -------------------------------------------------------------
-// MAIN UNIFIED BUSINESS & ARENA VIEW (Liquid Glass Edition)
+// MAIN UNIFIED BUSINESS & ARENA VIEW (Apple Pure Monochrome)
 // -------------------------------------------------------------
 export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
   domains,
@@ -901,7 +898,7 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
         provisionElevenLabsAgent(res.domain_id).catch(() => null);
 
         setCompileSuccessToast(
-          `✓ Voice agent compiled for "${businessName}" with ${res.catalog_items.length} verified items!`
+          `Voice agent compiled for "${businessName}" with ${res.catalog_items.length} verified items.`
         );
         setTimeout(() => setCompileSuccessToast(null), 5000);
       } else {
@@ -934,7 +931,7 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
 
     setDuelSpeaker("attacker");
     const uttAttacker = new SpeechSynthesisUtterance(attackerUtterance);
-    uttAttacker.pitch = 0.82;
+    uttAttacker.pitch = 0.85;
     uttAttacker.rate = 1.05;
 
     uttAttacker.onend = () => {
@@ -942,8 +939,8 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
       setTimeout(() => {
         setDuelSpeaker("defender");
         const uttDefender = new SpeechSynthesisUtterance(defenderResponse);
-        uttDefender.pitch = 1.15;
-        uttDefender.rate = 1.02;
+        uttDefender.pitch = 1.1;
+        uttDefender.rate = 1.0;
 
         uttDefender.onend = () => {
           setDuelSpeaker("healed");
@@ -992,158 +989,158 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
   const activeScenario = scenarios[selectedScenarioIdx] || scenarios[0] || DEFAULT_ARENA_SCENARIOS[0];
 
   return (
-    <div className="w-full h-full flex flex-col overflow-y-auto text-neutral-900">
-      {/* 1. LUXURIOUS HERO SECTION (White Liquid Glass Aesthetic matching reference) */}
-      <div className="w-full pt-10 pb-8 px-8 sm:px-12 text-center max-w-5xl mx-auto space-y-6">
-        {/* Pill Badge */}
-        <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-white/80 border border-neutral-200/80 shadow-xs text-xs font-medium text-neutral-700">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Enterprise-grade Voice AI platform</span>
+    <div className="w-full h-full flex flex-col overflow-y-auto text-[#151619]">
+      {/* 1. APPLE MINIMALIST HERO (Strictly Monochrome & Light Glass) */}
+      <div className="w-full pt-12 pb-9 px-8 sm:px-12 text-center max-w-4xl mx-auto space-y-6">
+        {/* Subtle Monochrome Pill Badge */}
+        <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-white border border-[#E9EBEF] shadow-xs text-xs font-medium text-[#34373D]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#151619] mono-live-dot" />
+          <span>Enterprise Voice AI Platform</span>
         </div>
 
-        {/* Big Bold Headline */}
-        <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 leading-[1.15]">
+        {/* Strong Black Headline */}
+        <h1 className="text-3xl sm:text-5xl font-semibold tracking-tight text-[#151619] leading-[1.12]">
           Deploy Deterministic Voice Agents for Real Businesses.
         </h1>
 
-        {/* Subtitle */}
-        <p className="text-sm sm:text-base text-neutral-600 max-w-2xl mx-auto leading-relaxed">
+        {/* Charcoal Secondary Subtitle */}
+        <p className="text-sm sm:text-base text-[#34373D] max-w-2xl mx-auto leading-relaxed">
           Create, speak with, and pre-deploy battle-tested voice agents powered by ElevenLabs, with guardrails, evaluation and real-world tools.
         </p>
 
-        {/* CTA Button Row */}
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        {/* Action Button Row */}
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
           <button
             onClick={() => setIsCallOpen(true)}
-            className="btn-pill-primary px-6 py-3 text-sm flex items-center space-x-2"
+            className="btn-apple-primary px-6 py-2.5 text-xs sm:text-sm flex items-center space-x-2"
           >
-            <PhoneCall className="w-4 h-4 text-white" />
-            <span>Call {currentDomain?.name || "Voice Agent"} →</span>
+            <PhoneCall className="w-3.5 h-3.5 text-white" />
+            <span>Call {currentDomain?.name || "Voice Agent"}</span>
           </button>
 
           <button
             onClick={scrollToArena}
-            className="btn-pill-glass px-6 py-3 text-sm flex items-center space-x-2"
+            className="btn-apple-secondary px-6 py-2.5 text-xs sm:text-sm flex items-center space-x-2"
           >
-            <Swords className="w-4 h-4 text-neutral-600" />
+            <Swords className="w-3.5 h-3.5 text-[#151619]" />
             <span>Watch AI Combat Arena</span>
           </button>
         </div>
 
-        {/* 4 Feature Badges (Matching reference image) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6">
-          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
+        {/* 4 Feature Badges (Monochrome Apple Glass Cards) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4">
+          <div className="apple-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] flex items-center justify-center text-[#151619] shrink-0">
               <Volume2 className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-neutral-900">ElevenLabs v2/v4</div>
-              <div className="text-[11px] text-neutral-500">Multilingual realistic speech</div>
+              <div className="text-xs font-semibold text-[#151619]">ElevenLabs v2/v4</div>
+              <div className="text-[11px] text-[#737B8B]">Multilingual realistic speech</div>
             </div>
           </div>
 
-          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
+          <div className="apple-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] flex items-center justify-center text-[#151619] shrink-0">
               <Radio className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-neutral-900">Twilio PSTN</div>
-              <div className="text-[11px] text-neutral-500">Make & receive phone calls</div>
+              <div className="text-xs font-semibold text-[#151619]">Twilio PSTN</div>
+              <div className="text-[11px] text-[#737B8B]">Make & receive phone calls</div>
             </div>
           </div>
 
-          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+          <div className="apple-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] flex items-center justify-center text-[#151619] shrink-0">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-neutral-900">Anti-Agent Testing</div>
-              <div className="text-[11px] text-neutral-500">Adversarial safety audit</div>
+              <div className="text-xs font-semibold text-[#151619]">Anti-Agent Testing</div>
+              <div className="text-[11px] text-[#737B8B]">Adversarial safety audit</div>
             </div>
           </div>
 
-          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+          <div className="apple-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] flex items-center justify-center text-[#151619] shrink-0">
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-neutral-900">Production Ready</div>
-              <div className="text-[11px] text-neutral-500">Sub-400ms Turn Latency</div>
+              <div className="text-xs font-semibold text-[#151619]">Production Ready</div>
+              <div className="text-[11px] text-[#737B8B]">Sub-400ms Turn Latency</div>
             </div>
           </div>
         </div>
 
-        {/* 4 Top KPI Stat Cards (Matching Reference Image Floating Console Header) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-4 text-left">
-          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-              <Users className="w-5 h-5" />
+        {/* 4 Top KPI Stat Cards (Matching Reference Apple Floating Console Header) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2 text-left">
+          <div className="apple-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-9 h-9 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center font-semibold">
+              <Users className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xl font-extrabold text-neutral-900">5</div>
-              <div className="text-xs text-neutral-500 font-medium">Active Agents</div>
+              <div className="text-lg font-bold text-[#151619]">5</div>
+              <div className="text-xs text-[#737B8B] font-medium">Active Agents</div>
             </div>
           </div>
 
-          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
-              <PhoneCall className="w-5 h-5" />
+          <div className="apple-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-9 h-9 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center font-semibold">
+              <PhoneCall className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xl font-extrabold text-neutral-900">1,247</div>
-              <div className="text-xs text-neutral-500 font-medium">Total Calls</div>
+              <div className="text-lg font-bold text-[#151619]">1,247</div>
+              <div className="text-xs text-[#737B8B] font-medium">Total Calls</div>
             </div>
           </div>
 
-          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
-              <ShieldCheck className="w-5 h-5" />
+          <div className="apple-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-9 h-9 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center font-semibold">
+              <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xl font-extrabold text-neutral-900">98.2%</div>
-              <div className="text-xs text-neutral-500 font-medium">Success Rate</div>
+              <div className="text-lg font-bold text-[#151619]">98.2%</div>
+              <div className="text-xs text-[#737B8B] font-medium">Success Rate</div>
             </div>
           </div>
 
-          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-              <Activity className="w-5 h-5" />
+          <div className="apple-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-9 h-9 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center font-semibold">
+              <Activity className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xl font-extrabold text-neutral-900">348ms</div>
-              <div className="text-xs text-neutral-500 font-medium">Avg. Latency</div>
+              <div className="text-lg font-bold text-[#151619]">348ms</div>
+              <div className="text-xs text-[#737B8B] font-medium">Avg. Latency</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* 2. UNIVERSAL PROMPT BAR & BUILDER (Step 1) */}
-      <div className="max-w-5xl mx-auto w-full px-8 pb-4">
+      <div className="max-w-4xl mx-auto w-full px-8 pb-4">
         <div className="mb-3">
-          <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
+          <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-[#737B8B]">
             <span>Step 1</span>
           </div>
-          <h2 className="text-lg font-bold text-neutral-900 mt-0.5">
+          <h2 className="text-base font-semibold text-[#151619] mt-0.5">
             Create or Select Your Business Voice Agent
           </h2>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <p className="text-xs text-[#737B8B] mt-0.5">
             Describe your business below to compile a custom voice agent, or click "+ Add Menu" to specify exact items & prices.
           </p>
         </div>
 
-        {/* The Sleek Horizontal Prompt Bar */}
-        <div className="p-2.5 rounded-2xl liquid-glass-panel flex flex-col md:flex-row items-center gap-2">
+        {/* The Sleek Horizontal Glass Prompt Bar */}
+        <div className="p-2 rounded-2xl apple-glass-surface flex flex-col md:flex-row items-center gap-2">
           {/* Business Category Selector */}
           <select
             value={customCategory}
             onChange={(e) => setCustomCategory(e.target.value)}
-            className="px-3.5 py-2.5 rounded-xl bg-white/90 border border-neutral-200 text-xs font-medium text-neutral-800 focus:outline-none focus:border-neutral-900 w-full md:w-40 shadow-xs"
+            className="px-3.5 py-2.5 rounded-xl bg-white border border-[#E9EBEF] text-xs font-medium text-[#151619] focus:outline-none focus:border-[#151619] w-full md:w-36 shadow-xs"
           >
-            <option value="restaurant">🍕 Restaurant</option>
-            <option value="clinic">🦷 Clinic / Doctor</option>
-            <option value="realty">🏢 Real Estate</option>
-            <option value="support">🎧 E-commerce</option>
-            <option value="custom">💼 Custom Service</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="clinic">Clinic / Doctor</option>
+            <option value="realty">Real Estate</option>
+            <option value="support">E-commerce</option>
+            <option value="custom">Custom Service</option>
           </select>
 
           {/* Main Prompt Input with Microphone Voice Button */}
@@ -1155,13 +1152,13 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
               onKeyDown={(e) => e.key === "Enter" && handleCompileCustomAgent()}
               placeholder={
                 isPromptListening
-                  ? "🎙️ Listening... speak your business details now"
+                  ? "Listening... speak your business details now"
                   : "Describe business (e.g. Luigi's Wood-Fired Pizza in Indiranagar, or Dr. Mehra's Dental Clinic)..."
               }
-              className={`w-full px-4 py-2.5 pr-11 rounded-xl bg-white/90 border text-xs sm:text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none transition-colors shadow-xs ${
+              className={`w-full px-4 py-2.5 pr-10 rounded-xl bg-white border text-xs sm:text-sm text-[#151619] placeholder-[#9EA5B0] focus:outline-none transition-colors shadow-xs ${
                 isPromptListening
-                  ? "border-rose-500 bg-rose-50 text-rose-900"
-                  : "border-neutral-200 focus:border-neutral-900"
+                  ? "border-[#151619] bg-[#F7F8FA]"
+                  : "border-[#E9EBEF] focus:border-[#151619]"
               }`}
             />
             <button
@@ -1170,14 +1167,14 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
               title={isPromptListening ? "Stop listening" : "Speak business description"}
               className={`absolute right-2.5 p-1.5 rounded-lg transition-colors ${
                 isPromptListening
-                  ? "bg-rose-500 text-white animate-pulse"
-                  : "text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100"
+                  ? "bg-[#151619] text-white"
+                  : "text-[#737B8B] hover:text-[#151619] hover:bg-[#F7F8FA]"
               }`}
             >
               {isPromptListening ? (
-                <MicOff className="w-4 h-4" />
+                <MicOff className="w-3.5 h-3.5" />
               ) : (
-                <Mic className="w-4 h-4" />
+                <Mic className="w-3.5 h-3.5" />
               )}
             </button>
           </div>
@@ -1185,9 +1182,9 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
           {/* "+ Add Menu / Catalog" Button */}
           <button
             onClick={() => setCatalogModalOpen(true)}
-            className="btn-pill-glass px-4 py-2.5 text-xs flex items-center space-x-1.5 shrink-0 w-full md:w-auto justify-center"
+            className="btn-apple-secondary px-3.5 py-2.5 text-xs flex items-center space-x-1.5 shrink-0 w-full md:w-auto justify-center"
           >
-            <Plus className="w-3.5 h-3.5 text-emerald-600" />
+            <Plus className="w-3.5 h-3.5 text-[#151619]" />
             <span>
               {customCatalogItems.length > 0
                 ? `Catalog (${customCatalogItems.length})`
@@ -1199,7 +1196,7 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
           <button
             onClick={handleCompileCustomAgent}
             disabled={isCompiling}
-            className="btn-pill-primary px-5 py-2.5 text-xs flex items-center space-x-2 disabled:opacity-50 shrink-0 w-full md:w-auto justify-center"
+            className="btn-apple-primary px-4 py-2.5 text-xs flex items-center space-x-2 disabled:opacity-40 shrink-0 w-full md:w-auto justify-center"
           >
             {isCompiling ? (
               <>
@@ -1217,15 +1214,15 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
 
         {/* Success Toast */}
         {compileSuccessToast && (
-          <div className="mt-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <div className="mt-3 p-3 rounded-2xl bg-white border border-[#E9EBEF] text-xs text-[#151619] flex items-center space-x-2 shadow-xs">
+            <CheckCircle2 className="w-4 h-4 text-[#151619] shrink-0" />
             <span>{compileSuccessToast}</span>
           </div>
         )}
 
         {/* Prebuilt Templates Quick Selector */}
-        <div className="mt-4 pt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-neutral-500 font-medium mr-1">
+        <div className="mt-3.5 pt-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#737B8B] font-medium mr-1">
             Or pick sample business:
           </span>
           {domains.map((dom) => {
@@ -1237,22 +1234,13 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                 onClick={() => onSelectDomain(dom)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all flex items-center space-x-1.5 border cursor-pointer ${
                   isSelected
-                    ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                    : "bg-white/80 text-neutral-600 border-neutral-200/80 hover:border-neutral-300 hover:text-neutral-900 shadow-xs"
+                    ? "bg-[#151619] text-white border-[#151619] shadow-xs"
+                    : "bg-white text-[#34373D] border-[#E9EBEF] hover:border-[#D5D9DF] hover:text-[#151619] shadow-xs"
                 }`}
               >
-                <span>
-                  {dom.id.includes("cafe")
-                    ? "☕"
-                    : dom.id.includes("dental")
-                    ? "🦷"
-                    : dom.id.includes("realty")
-                    ? "🏢"
-                    : "🎧"}
-                </span>
                 <span>{dom.name}</span>
                 {isSelected && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
                 )}
                 {isCustom && (
                   <button
@@ -1272,7 +1260,7 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                         }
                       }
                     }}
-                    className="ml-1 w-4 h-4 rounded-full hover:bg-rose-500/20 text-neutral-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors"
+                    className="ml-1 w-4 h-4 rounded-full hover:bg-[#E9EBEF] text-[#737B8B] hover:text-[#151619] flex items-center justify-center text-xs font-bold transition-colors"
                     title="Delete domain"
                   >
                     ×
@@ -1284,102 +1272,102 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
         </div>
       </div>
 
-      {/* 3. STEP 2: LIVE CALL TESTING DOCK (Interactive Live Waveform & Recent Calls) */}
-      <div className="max-w-5xl mx-auto w-full px-8 py-6">
-        <div className="mb-4">
-          <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
+      {/* 3. STEP 2: LIVE CALL TESTING DOCK (Apple Monochrome Waveform & Calls) */}
+      <div className="max-w-4xl mx-auto w-full px-8 py-5">
+        <div className="mb-3">
+          <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-[#737B8B]">
             <span>Step 2</span>
           </div>
-          <h2 className="text-lg font-bold text-neutral-900 mt-0.5">
+          <h2 className="text-base font-semibold text-[#151619] mt-0.5">
             Live Agent Activity & Call Dock
           </h2>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <p className="text-xs text-[#737B8B] mt-0.5">
             Interact with {currentDomain?.name} over live audio or typed chat. Order details are validated deterministically.
           </p>
         </div>
 
-        {/* 2-Column Floating Grid matching Reference Mockup */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* 2-Column Grid matching Reference Mockup */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Column: Live Agent Activity Card */}
-          <div className="lg:col-span-7 liquid-glass-card rounded-3xl p-6 space-y-5">
+          <div className="lg:col-span-7 apple-glass-card rounded-3xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-800 font-bold">
-                  ☕
+                <div className="w-8 h-8 rounded-xl bg-[#F7F8FA] border border-[#E9EBEF] flex items-center justify-center text-[#151619] font-medium text-xs">
+                  AI
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900">{currentDomain?.name}</h3>
-                  <div className="text-[11px] text-neutral-500">In call • Customer placing an order</div>
+                  <h3 className="text-sm font-semibold text-[#151619]">{currentDomain?.name}</h3>
+                  <div className="text-[11px] text-[#737B8B]">In call • Customer placing an order</div>
                 </div>
               </div>
 
-              {/* Live Badge */}
-              <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-semibold text-emerald-700">Live</span>
+              {/* Monochrome Live Badge */}
+              <div className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#F7F8FA] border border-[#E9EBEF]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#151619] mono-live-dot" />
+                <span className="text-[11px] font-medium text-[#34373D]">Live</span>
               </div>
             </div>
 
-            {/* Pulsating Waveform Visualizer */}
-            <div className="py-4 px-6 rounded-2xl bg-neutral-50/80 border border-neutral-200/60 flex items-center justify-between">
-              {/* Animated Bars */}
-              <div className="flex items-center space-x-1.5 h-8">
-                {[12, 22, 16, 28, 8, 20, 26, 14, 24, 18, 10, 26, 18, 14, 22].map((h, i) => (
+            {/* Apple Monochrome Animated Waveform */}
+            <div className="py-3.5 px-5 rounded-2xl bg-[#F7F8FA] border border-[#E9EBEF] flex items-center justify-between">
+              {/* Animated Monochrome Bars */}
+              <div className="flex items-center space-x-1 h-7">
+                {[12, 20, 14, 24, 8, 18, 22, 12, 20, 16, 9, 22, 15, 12, 19].map((h, i) => (
                   <span
                     key={i}
-                    className="w-1 wave-bar bg-emerald-500"
+                    className="w-1 mono-wave-bar"
                     style={{
                       height: `${h}px`,
-                      animationDelay: `${i * 0.08}s`,
+                      animationDelay: `${i * 0.07}s`,
                     }}
                   />
                 ))}
               </div>
 
               {/* Call Timer */}
-              <div className="text-xs font-mono font-bold text-neutral-800 bg-white px-3 py-1 rounded-full border border-neutral-200 shadow-xs">
+              <div className="text-xs font-mono font-medium text-[#151619] bg-white px-2.5 py-0.5 rounded-full border border-[#E9EBEF]">
                 00:24
               </div>
 
               {/* Quick Audio Controls */}
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <button
                   type="button"
                   onClick={() => setIsCallOpen(true)}
-                  className="w-8 h-8 rounded-full bg-white hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-600 transition-colors shadow-xs"
+                  className="w-7 h-7 rounded-full bg-white hover:bg-[#E9EBEF] border border-[#E9EBEF] flex items-center justify-center text-[#34373D] transition-colors"
                 >
-                  <Mic className="w-4 h-4" />
+                  <Mic className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsCallOpen(true)}
-                  className="w-8 h-8 rounded-full bg-white hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-600 transition-colors shadow-xs"
+                  className="w-7 h-7 rounded-full bg-white hover:bg-[#E9EBEF] border border-[#E9EBEF] flex items-center justify-center text-[#34373D] transition-colors"
                 >
-                  <Pause className="w-4 h-4" />
+                  <Pause className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsCallOpen(true)}
-                  className="w-8 h-8 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center transition-colors shadow-xs"
+                  className="w-7 h-7 rounded-full bg-[#151619] hover:bg-[#34373D] text-white flex items-center justify-center transition-colors"
                 >
-                  <PhoneOff className="w-3.5 h-3.5" />
+                  <PhoneOff className="w-3 h-3" />
                 </button>
               </div>
             </div>
 
             {/* Action Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <div className="flex items-center space-x-2 text-[11px] text-neutral-500 font-mono">
-                <span>✓ Sub-400ms Turn</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+              <div className="flex items-center space-x-2 text-[11px] text-[#737B8B] font-mono">
+                <span>Sub-400ms Turn</span>
                 <span>•</span>
-                <span>✓ Phonetic Gate</span>
+                <span>Phonetic Gate</span>
                 <span>•</span>
-                <span>✓ Two-Phase Commit</span>
+                <span>Two-Phase Commit</span>
               </div>
 
               <button
                 onClick={() => setIsCallOpen(true)}
-                className="btn-pill-primary px-4 py-2 text-xs flex items-center space-x-1.5"
+                className="btn-apple-primary px-3.5 py-1.5 text-xs flex items-center space-x-1.5"
               >
                 <PhoneCall className="w-3.5 h-3.5" />
                 <span>Open Audio Console</span>
@@ -1387,87 +1375,87 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Recent Calls Card (Matching reference mockup) */}
-          <div className="lg:col-span-5 liquid-glass-card rounded-3xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
-              <h3 className="text-sm font-bold text-neutral-900">Recent Calls</h3>
+          {/* Right Column: Recent Calls Card (Apple Monochrome List) */}
+          <div className="lg:col-span-5 apple-glass-card rounded-3xl p-5 space-y-3.5">
+            <div className="flex items-center justify-between border-b border-[#E9EBEF] pb-2">
+              <h3 className="text-sm font-semibold text-[#151619]">Recent Calls</h3>
               <button
                 onClick={() => setIsCallOpen(true)}
-                className="text-xs font-semibold text-neutral-500 hover:text-neutral-900 flex items-center space-x-1"
+                className="text-xs font-medium text-[#737B8B] hover:text-[#151619] flex items-center space-x-1"
               >
                 <span>View all</span>
                 <ArrowUpRight className="w-3 h-3" />
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                    <PhoneCall className="w-3.5 h-3.5" />
+                  <div className="w-6 h-6 rounded-full bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center">
+                    <PhoneCall className="w-3 h-3" />
                   </div>
                   <div>
-                    <div className="font-semibold text-neutral-900">+91 98765 43210</div>
-                    <div className="text-[11px] text-neutral-500">Order placed successfully</div>
+                    <div className="font-medium text-[#151619]">+91 98765 43210</div>
+                    <div className="text-[11px] text-[#737B8B]">Order placed successfully</div>
                   </div>
                 </div>
-                <span className="text-[11px] text-neutral-400">2 min ago</span>
+                <span className="text-[11px] text-[#9EA5B0]">2 min ago</span>
               </div>
 
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                    <Radio className="w-3.5 h-3.5" />
+                  <div className="w-6 h-6 rounded-full bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center">
+                    <Radio className="w-3 h-3" />
                   </div>
                   <div>
-                    <div className="font-semibold text-neutral-900">+91 98123 8876</div>
-                    <div className="text-[11px] text-amber-600">Escalated to human (low confidence)</div>
+                    <div className="font-medium text-[#151619]">+91 98123 8876</div>
+                    <div className="text-[11px] text-[#737B8B]">Escalated to human (low confidence)</div>
                   </div>
                 </div>
-                <span className="text-[11px] text-neutral-400">12 min ago</span>
+                <span className="text-[11px] text-[#9EA5B0]">12 min ago</span>
               </div>
 
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                    <PhoneCall className="w-3.5 h-3.5" />
+                  <div className="w-6 h-6 rounded-full bg-[#F7F8FA] border border-[#E9EBEF] text-[#151619] flex items-center justify-center">
+                    <PhoneCall className="w-3 h-3" />
                   </div>
                   <div>
-                    <div className="font-semibold text-neutral-900">+91 99672 3311</div>
-                    <div className="text-[11px] text-neutral-500">Answered - General query</div>
+                    <div className="font-medium text-[#151619]">+91 99672 3311</div>
+                    <div className="text-[11px] text-[#737B8B]">Answered - General query</div>
                   </div>
                 </div>
-                <span className="text-[11px] text-neutral-400">21 min ago</span>
+                <span className="text-[11px] text-[#9EA5B0]">21 min ago</span>
               </div>
 
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-500 flex items-center justify-center">
-                    <PhoneOff className="w-3.5 h-3.5" />
+                  <div className="w-6 h-6 rounded-full bg-[#F7F8FA] border border-[#E9EBEF] text-[#737B8B] flex items-center justify-center">
+                    <PhoneOff className="w-3 h-3" />
                   </div>
                   <div>
-                    <div className="font-semibold text-neutral-900">+91 98711 2345</div>
-                    <div className="text-[11px] text-neutral-400">No answer</div>
+                    <div className="font-medium text-[#151619]">+91 98711 2345</div>
+                    <div className="text-[11px] text-[#9EA5B0]">No answer</div>
                   </div>
                 </div>
-                <span className="text-[11px] text-neutral-400">37 min ago</span>
+                <span className="text-[11px] text-[#9EA5B0]">37 min ago</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 4. STEP 3: FACE-TO-FACE AI COMBAT ARENA (Liquid Glass Style) */}
-      <div ref={arenaRef} className="max-w-5xl mx-auto w-full px-8 pb-16">
-        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 4. STEP 3: FACE-TO-FACE AI COMBAT ARENA (Apple Monochrome Duel) */}
+      <div ref={arenaRef} className="max-w-4xl mx-auto w-full px-8 pb-14">
+        <div className="mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-rose-600">
+            <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-[#737B8B]">
               <span>Step 3</span>
             </div>
-            <h2 className="text-lg font-bold text-neutral-900 mt-0.5">
+            <h2 className="text-base font-semibold text-[#151619] mt-0.5">
               Check Agent Sustainability (AI Combat Arena)
             </h2>
-            <p className="text-xs text-neutral-500 mt-0.5">
+            <p className="text-xs text-[#737B8B] mt-0.5">
               An adversarial Red-Team agent attacks your bot on the spot with social engineering and catalog bypasses.
             </p>
           </div>
@@ -1482,18 +1470,18 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                   playDuelConvo(activeScenario.attacker_utterance, defResp);
                 }
               }}
-              className={`btn-pill-glass px-4 py-2.5 text-xs font-semibold flex items-center space-x-1.5 ${
-                isDuelAudioPlaying ? "bg-rose-50 border-rose-300 text-rose-700" : ""
+              className={`btn-apple-secondary px-3.5 py-2 text-xs font-medium flex items-center space-x-1.5 ${
+                isDuelAudioPlaying ? "bg-[#151619] text-white" : ""
               }`}
             >
-              <Volume2 className={`w-3.5 h-3.5 ${isDuelAudioPlaying ? "text-rose-500 animate-pulse" : "text-emerald-600"}`} />
+              <Volume2 className="w-3.5 h-3.5" />
               <span>{isDuelAudioPlaying ? "Stop Voice Duel" : "Listen to Vocal Duel"}</span>
             </button>
 
             <button
               onClick={handleLaunchDuel}
               disabled={arenaRunning}
-              className="btn-pill-primary px-5 py-2.5 text-xs flex items-center space-x-2 disabled:opacity-50 shrink-0"
+              className="btn-apple-primary px-4 py-2 text-xs flex items-center space-x-2 disabled:opacity-40 shrink-0"
             >
               {arenaRunning ? (
                 <>
@@ -1511,9 +1499,9 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
         </div>
 
         {/* Combat Arena Box */}
-        <div className="liquid-glass-card rounded-3xl p-6 space-y-6">
-          {/* Scenario Tabs (Minimalist Slate Pills) */}
-          <div className="flex flex-wrap gap-2 border-b border-neutral-100 pb-4">
+        <div className="apple-glass-card rounded-3xl p-5 space-y-5">
+          {/* Scenario Tabs (Monochrome Pills) */}
+          <div className="flex flex-wrap gap-2 border-b border-[#E9EBEF] pb-3">
             {scenarios.map((scen, idx) => (
               <button
                 key={scen.scenario_id}
@@ -1521,17 +1509,17 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                   stopDuelAudio();
                   setSelectedScenarioIdx(idx);
                 }}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all flex items-center space-x-2 border ${
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center space-x-2 border ${
                   selectedScenarioIdx === idx
-                    ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
-                    : "text-neutral-600 hover:text-neutral-900 border-neutral-200/80 hover:bg-neutral-100/60"
+                    ? "bg-[#151619] text-white border-[#151619] shadow-xs"
+                    : "text-[#34373D] hover:text-[#151619] border-[#E9EBEF] hover:bg-[#F7F8FA]"
                 }`}
               >
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
                     scen.status === "PASS"
-                      ? "bg-emerald-500"
-                      : "bg-rose-500"
+                      ? "bg-[#34373D]"
+                      : "bg-[#151619]"
                   }`}
                 />
                 <span>Attack #{scen.scenario_id}: {scen.title.split("—")[0].trim()}</span>
@@ -1539,44 +1527,44 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
             ))}
           </div>
 
-          {/* 3-Column Duel Arena: Attacker (Red) | Gate (Center) | Defender (Green) */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          {/* 3-Column Duel Arena: Attacker | Center Gate | Defender */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
             {/* LEFT FIGHTER: Red-Team Attacker */}
             <div
               className={`md:col-span-5 space-y-3 p-4 rounded-2xl transition-all ${
                 duelSpeaker === "attacker"
-                  ? "ring-2 ring-rose-500 bg-rose-50/60 scale-[1.02]"
-                  : "bg-neutral-50/60 border border-neutral-200/60"
+                  ? "ring-1 ring-[#151619] bg-white scale-[1.01]"
+                  : "bg-[#F7F8FA] border border-[#E9EBEF]"
               }`}
             >
               <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-600 ${duelSpeaker === "attacker" ? "animate-bounce" : ""}`}>
-                  <Bot className="w-5 h-5" />
+                <div className={`w-9 h-9 rounded-xl bg-white border border-[#E9EBEF] flex items-center justify-center text-[#151619] ${duelSpeaker === "attacker" ? "animate-bounce" : ""}`}>
+                  <Bot className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h4 className="text-xs font-bold text-neutral-900">Red-Team Adversary</h4>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold uppercase">
+                    <h4 className="text-xs font-semibold text-[#151619]">Red-Team Adversary</h4>
+                    <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white text-[#34373D] border border-[#E9EBEF] uppercase font-medium">
                       Attacker
                     </span>
                     {duelSpeaker === "attacker" && (
-                      <span className="text-[10px] text-rose-600 font-mono animate-pulse">
-                        ● Speaking...
+                      <span className="text-[10px] text-[#151619] font-mono animate-pulse">
+                        Speaking...
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-neutral-500">
+                  <span className="text-[11px] text-[#737B8B]">
                     {activeScenario.attack_vector}
                   </span>
                 </div>
               </div>
 
               {/* Attacker Speech Bubble */}
-              <div className="rounded-xl bg-white border border-rose-200 p-4 shadow-xs">
-                <span className="text-[11px] text-rose-600 font-semibold block mb-1">
+              <div className="rounded-xl bg-white border border-[#E9EBEF] p-3.5 shadow-xs">
+                <span className="text-[11px] text-[#34373D] font-medium block mb-1">
                   Spoken Attack Utterance:
                 </span>
-                <p className="text-xs sm:text-sm text-neutral-800 italic leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#151619] italic leading-relaxed">
                   "{activeScenario.attacker_utterance}"
                 </p>
               </div>
@@ -1584,17 +1572,17 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
 
             {/* CENTER CLASH GAUGE */}
             <div
-              className={`md:col-span-2 flex flex-col items-center justify-center space-y-2 py-2 text-center transition-all ${
-                duelSpeaker === "clash" ? "scale-110" : ""
+              className={`md:col-span-2 flex flex-col items-center justify-center space-y-1.5 py-2 text-center transition-all ${
+                duelSpeaker === "clash" ? "scale-105" : ""
               }`}
             >
-              <div className={`w-10 h-10 rounded-full bg-white border flex items-center justify-center shadow-xs transition-colors ${duelSpeaker === "clash" ? "border-rose-500 text-rose-500 animate-spin" : "border-neutral-200 text-neutral-600"}`}>
-                <Swords className="w-4 h-4" />
+              <div className={`w-9 h-9 rounded-full bg-white border border-[#E9EBEF] flex items-center justify-center shadow-xs text-[#151619] ${duelSpeaker === "clash" ? "animate-spin" : ""}`}>
+                <Swords className="w-3.5 h-3.5" />
               </div>
-              <span className="px-3 py-1 rounded-full bg-neutral-100 text-neutral-800 text-[11px] font-mono font-bold border border-neutral-200">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#F7F8FA] text-[#151619] text-[10px] font-mono font-medium border border-[#E9EBEF]">
                 {activeScenario.status === "PASS" ? "ATTACK BLOCKED" : "AUTO-PATCHED"}
               </span>
-              <span className="text-[10px] text-neutral-400 font-mono">
+              <span className="text-[10px] text-[#737B8B] font-mono">
                 {activeScenario.latency_ms}ms turn
               </span>
             </div>
@@ -1603,61 +1591,61 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
             <div
               className={`md:col-span-5 space-y-3 text-right p-4 rounded-2xl transition-all ${
                 duelSpeaker === "defender"
-                  ? "ring-2 ring-emerald-500 bg-emerald-50/60 scale-[1.02]"
-                  : "bg-neutral-50/60 border border-neutral-200/60"
+                  ? "ring-1 ring-[#151619] bg-white scale-[1.01]"
+                  : "bg-[#F7F8FA] border border-[#E9EBEF]"
               }`}
             >
               <div className="flex items-center justify-end space-x-3">
                 <div>
                   <div className="flex items-center justify-end space-x-2">
                     {duelSpeaker === "defender" && (
-                      <span className="text-[10px] text-emerald-600 font-mono animate-pulse">
-                        ● Speaking...
+                      <span className="text-[10px] text-[#151619] font-mono animate-pulse">
+                        Speaking...
                       </span>
                     )}
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold uppercase">
+                    <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white text-[#34373D] border border-[#E9EBEF] uppercase font-medium">
                       Protected
                     </span>
-                    <h4 className="text-xs font-bold text-neutral-900">
+                    <h4 className="text-xs font-semibold text-[#151619]">
                       {currentDomain?.name}
                     </h4>
                   </div>
-                  <span className="text-[11px] text-neutral-500">
+                  <span className="text-[11px] text-[#737B8B]">
                     Pydantic Catalog Guardrail
                   </span>
                 </div>
-                <div className={`w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 ${duelSpeaker === "defender" ? "animate-bounce" : ""}`}>
-                  <ShieldCheck className="w-5 h-5" />
+                <div className={`w-9 h-9 rounded-xl bg-white border border-[#E9EBEF] flex items-center justify-center text-[#151619] ${duelSpeaker === "defender" ? "animate-bounce" : ""}`}>
+                  <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
 
               {/* Defender Speech Bubble */}
-              <div className="rounded-xl bg-white border border-emerald-200 p-4 text-left shadow-xs">
-                <span className="text-[11px] text-emerald-600 font-semibold block mb-1">
+              <div className="rounded-xl bg-white border border-[#E9EBEF] p-3.5 text-left shadow-xs">
+                <span className="text-[11px] text-[#34373D] font-medium block mb-1">
                   Agent Spoken Verification:
                 </span>
-                <p className="text-xs sm:text-sm text-neutral-800 leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#151619] leading-relaxed">
                   "{activeScenario.post_patch_agent_response || activeScenario.initial_agent_response}"
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Self-Healing Auto-Patch Card (When vulnerability auto-healed) */}
+          {/* Self-Healing Auto-Patch Card (Monochrome Glass Banner) */}
           {activeScenario.patched_guardrail_rule && (
-            <div className="pt-4 border-t border-neutral-100">
-              <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 space-y-2">
+            <div className="pt-3 border-t border-[#E9EBEF]">
+              <div className="p-3.5 rounded-2xl bg-[#F7F8FA] border border-[#E9EBEF] space-y-1.5">
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-xs font-bold text-emerald-900 uppercase font-mono">
+                  <Sparkles className="w-3.5 h-3.5 text-[#151619]" />
+                  <span className="text-xs font-semibold text-[#151619] uppercase font-mono">
                     Self-Healing Rule Injected into Prompt & SQLite
                   </span>
                 </div>
-                <p className="text-xs text-neutral-800 font-mono bg-white p-3 rounded-xl border border-emerald-200 shadow-xs">
+                <p className="text-xs text-[#151619] font-mono bg-white p-3 rounded-xl border border-[#E9EBEF] shadow-xs">
                   {activeScenario.patched_guardrail_rule}
                 </p>
-                <p className="text-[11px] text-emerald-700 flex items-center space-x-1.5 font-medium">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <p className="text-[11px] text-[#34373D] flex items-center space-x-1.5 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#151619]" />
                   <span>
                     Vulnerability closed. Future verbal discount bypass attempts will be blocked automatically.
                   </span>

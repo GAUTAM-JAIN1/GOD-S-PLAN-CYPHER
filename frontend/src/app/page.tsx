@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { TopTelemetryBar, ViewTabMode } from "@/components/TopTelemetryBar";
 import { BusinessDemoView } from "@/components/views/BusinessDemoView";
 import { DeveloperWorkbenchView } from "@/components/views/DeveloperWorkbenchView";
@@ -117,7 +117,6 @@ export default function WorkbenchPage() {
 
   const handleCreateAgentFocus = () => {
     setActiveTab("main");
-    // Scroll smoothly to top prompt bar
     const promptInput = document.querySelector('input[placeholder*="Describe business"]') as HTMLInputElement;
     if (promptInput) {
       promptInput.focus();
@@ -126,7 +125,7 @@ export default function WorkbenchPage() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col liquid-glass-canvas text-neutral-900 overflow-hidden select-none">
+    <div className="h-screen w-screen flex flex-col apple-glass-canvas text-[#151619] overflow-hidden select-none">
       {/* Top Floating Glass Header */}
       <TopTelemetryBar
         activeTab={activeTab}
@@ -140,12 +139,11 @@ export default function WorkbenchPage() {
         onCreateAgentClick={handleCreateAgentFocus}
       />
 
-      {/* Main Workspace Body with Subtle Ambient Caustics */}
+      {/* Main Workspace Body with Subtle Monochrome Architectural Lighting */}
       <main className="flex-1 w-full overflow-hidden flex relative">
-        {/* Soft background ambient light blooms */}
-        <div className="pointer-events-none absolute -top-40 -left-40 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute top-1/2 -right-40 w-96 h-96 bg-purple-100/40 rounded-full blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-40 left-1/3 w-96 h-96 bg-emerald-100/30 rounded-full blur-3xl" />
+        {/* Soft daylight monochrome glow diffusions */}
+        <div className="pointer-events-none absolute -top-40 -left-40 w-96 h-96 bg-white/60 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute top-1/2 -right-40 w-96 h-96 bg-white/50 rounded-full blur-3xl" />
 
         {/* MAIN VIEW: Unified 3-Step Journey (Build, Call, Arena Duel) */}
         {activeTab === "main" && (
