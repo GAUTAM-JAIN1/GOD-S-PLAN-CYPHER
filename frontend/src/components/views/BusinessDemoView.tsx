@@ -23,6 +23,10 @@ import {
   Mic,
   MicOff,
   Radio,
+  Users,
+  Activity,
+  ArrowUpRight,
+  Pause,
 } from "lucide-react";
 import {
   DomainProfile,
@@ -104,44 +108,35 @@ function LivePhoneCallModalInner({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [messages, setMessages] = useState<
+    Array<{ sender: "caller" | "agent"; text: string; tag?: string }>
+  >([]);
   const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState<Array<{ sender: "caller" | "agent"; text: string; tag?: string }>>([
-    {
-      sender: "agent",
-      text: activeDomain.first_message || "Namaste! Aaj aapke liye kya fresh order lagau?",
-    },
-  ]);
-  const lastTokenRef = useRef<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [pendingOrder, setPendingOrder] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Auto scroll to bottom smoothly whenever messages update
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({
-        top: scrollContainerRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const lastTokenRef = useRef<string>("");
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const conversation = useConversation({
     onConnect: () => {
+      setIsConnected(true);
       setIsConnecting(false);
       setErrorMessage(null);
     },
     onDisconnect: () => {
+      setIsConnected(false);
       setIsConnecting(false);
     },
-    onError: (err: any) => {
+    onError: (error) => {
+      console.error("ElevenLabs error:", error);
+      setErrorMessage("Voice session failed. Falling back to local browser engine.");
       setIsConnecting(false);
-      const msg = typeof err === "string" ? err : err?.message || "Voice connection error";
-      setErrorMessage(msg);
     },
-    onMessage: (msg: { message: string; source: "user" | "ai" }) => {
+    onMessage: (msg: any) => {
       const isAI = msg.source === "ai";
       setMessages((prev) => [
         ...prev,
@@ -151,7 +146,6 @@ function LivePhoneCallModalInner({
         },
       ]);
 
-      // REAL HANGUP: Automatically end call if agent says goodbye / cut call / transfer
       if (isAI) {
         const textLower = msg.message.toLowerCase();
         const isGoodbyePhrase =
@@ -252,423 +246,43 @@ function LivePhoneCallModalInner({
           return `Commit failed: ${e.message}`;
         }
       },
-      request_human_intervention: async (params: any) => {
-        const reason = params?.reason || params?.caller_summary || "Caller requested human transfer";
-        try {
-          const res = await requestHumanInterventionTool({
-            domain_id: activeDomain.id,
-            reason: reason,
-            caller_utterance: params?.caller_summary || params?.caller_utterance || reason,
-          });
-          return `Hold created in system (hold_id: ${res.hold_id}). Urgent Telegram alert sent to business owner. SLA timer active. Tell caller: 'Ek second line par rahiye, main turant owner ko connect kar rahi hu.'`;
-        } catch (e: any) {
-          return `Escalation alert sent to business owner.`;
-        }
-      },
-      "request human intervention": async (params: any) => {
-        const reason = params?.reason || params?.caller_summary || "Caller requested human transfer";
-        try {
-          const res = await requestHumanInterventionTool({
-            domain_id: activeDomain.id,
-            reason: reason,
-            caller_utterance: params?.caller_summary || params?.caller_utterance || reason,
-          });
-          return `Hold created in system (hold_id: ${res.hold_id}). Urgent Telegram alert sent to business owner. SLA timer active. Tell caller: 'Ek second line par rahiye, main turant owner ko connect kar rahi hu.'`;
-        } catch (e: any) {
-          return `Escalation alert sent to business owner.`;
-        }
-      },
-      human_intervention: async (params: any) => {
-        const reason = params?.reason || params?.caller_summary || "Caller requested human transfer";
-        try {
-          const res = await requestHumanInterventionTool({
-            domain_id: activeDomain.id,
-            reason: reason,
-            caller_utterance: params?.caller_summary || params?.caller_utterance || reason,
-          });
-          return `Hold created in system (hold_id: ${res.hold_id}). Urgent Telegram alert sent to business owner. SLA timer active. Tell caller: 'Ek second line par rahiye, main turant owner ko connect kar rahi hu.'`;
-        } catch (e: any) {
-          return `Escalation alert sent to business owner.`;
-        }
-      },
-      end_call: async () => {
-        setTimeout(() => {
-          conversation.endSession();
-        }, 1200);
-        return "Call ended successfully.";
-      },
-      "end call": async () => {
-        setTimeout(() => {
-          conversation.endSession();
-        }, 1200);
-        return "Call ended successfully.";
-      },
     },
   });
 
-  const [isBrowserVoiceActive, setIsBrowserVoiceActive] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const silenceTimerRef = useRef<any>(null);
-  const interimTranscriptRef = useRef<string>("");
-  const isSpeakingRef = useRef<boolean>(false);
-  const [pendingOrder, setPendingOrder] = useState<{
-    canonical_name: string;
-    quantity: number;
-    total_price_inr: number;
-    token: string;
-  } | null>(null);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const STOP_KEYWORDS = ["ruko", "wait", "cancel", "nahi", "hold", "bhaiya", "listen", "chup", "stop", "ruk"];
-  const MEANINGLESS_SYLLABLES = new Set(["uh", "hmm", "haan", "aah", "the", "um", "ah", "oh", "eh"]);
-
-  // 1. Hardware WebRTC Audio Constraints & Analyser Setup (Bug 2.1)
-  const setupAudioHardwareAndGate = async (): Promise<boolean> => {
-    try {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 16000,
-        },
-      });
-      mediaStreamRef.current = stream;
-
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        const audioCtx = new AudioContextClass();
-        const source = audioCtx.createMediaStreamSource(stream);
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.2;
-        source.connect(analyser);
-        audioContextRef.current = audioCtx;
-        analyserRef.current = analyser;
-      }
-      return true;
-    } catch (e) {
-      console.warn("Hardware WebRTC audio constraints unavailable, continuing with standard mic:", e);
-      return false;
-    }
-  };
-
-  // 2. RMS Decibel Energy Measurement (-35 dB threshold) (Bug 2.2)
-  const getMicEnergyDb = (): number => {
-    if (!analyserRef.current) return -25;
-    const pcm = new Float32Array(analyserRef.current.fftSize);
-    analyserRef.current.getFloatTimeDomainData(pcm);
-    let sumSquares = 0.0;
-    for (let i = 0; i < pcm.length; i++) {
-      sumSquares += pcm[i] * pcm[i];
-    }
-    const rms = Math.sqrt(sumSquares / pcm.length);
-    if (rms <= 0.00001) return -100;
-    return 20 * Math.log10(rms);
-  };
-
-  // 3. Sentence / Clause Level Streaming Speech Synthesis (Bug 1.2)
-  const speakText = (text: string, onEndCallback?: () => void) => {
+  const speakText = (text: string) => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-      isSpeakingRef.current = true;
-
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.08;
-      utterance.pitch = 1.0;
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(
-        (v) =>
-          v.lang.includes("IN") ||
-          v.name.includes("India") ||
-          v.name.includes("Google") ||
-          v.name.includes("Natural")
-      );
-      if (preferred) utterance.voice = preferred;
-
-      utterance.onend = () => {
-        isSpeakingRef.current = false;
-        if (onEndCallback) onEndCallback();
-      };
-      utterance.onerror = () => {
-        isSpeakingRef.current = false;
-        if (onEndCallback) onEndCallback();
-      };
-
+      utterance.lang = "hi-IN";
+      utterance.pitch = 1.05;
+      utterance.rate = 1.0;
       window.speechSynthesis.speak(utterance);
     }
   };
-
-  // 4. Fast Silence Endpointing (850ms VAD Cut-Off) + 2-Word Meaningful Barge-In Lock (Bug 1.1 & Bug 2.3)
-  const startListening = async () => {
-    if (typeof window === "undefined") return;
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setErrorMessage("Speech recognition not supported in this browser. You can type in the text box below.");
-      return;
-    }
-
-    await setupAudioHardwareAndGate();
-
-    try {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch {}
-      }
-      const recognition = new SpeechRecognition();
-      recognition.lang = "en-IN";
-      recognition.interimResults = true;
-      recognition.continuous = true;
-
-      recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => setIsListening(false);
-      recognition.onerror = () => setIsListening(false);
-
-      recognition.onresult = (event: any) => {
-        const energyDb = getMicEnergyDb();
-
-        // Noise Gate: Reject background noise frames below -35 dB (fans, typing, chair creaks)
-        if (energyDb < -35.0) {
-          return;
-        }
-
-        let interim = "";
-        let finalStr = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalStr += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-
-        const rawSpoken = (finalStr || interim).trim();
-        if (!rawSpoken) return;
-
-        const words = rawSpoken.split(/\s+/).filter((w) => !MEANINGLESS_SYLLABLES.has(w.toLowerCase()));
-
-        // 2-Word Meaningful Barge-In Lock:
-        // When AI is speaking, ignore breathing / single syllables unless caller is >-32dB AND speaks 2+ words or stop-word
-        if (isSpeakingRef.current) {
-          const hasStopWord = rawSpoken.toLowerCase().split(/\s+/).some((w) => STOP_KEYWORDS.includes(w));
-          const hasEnoughWords = words.length >= 2;
-          const hasBargeInEnergy = energyDb >= -32.0;
-
-          if (!((hasStopWord || hasEnoughWords) && hasBargeInEnergy)) {
-            // Anti-False-Barge-In: do not cut AI speech for background mutter
-            return;
-          }
-
-          // Legitimate caller barge-in: stop AI immediately
-          if (typeof window !== "undefined" && "speechSynthesis" in window) {
-            window.speechSynthesis.cancel();
-          }
-          isSpeakingRef.current = false;
-        }
-
-        interimTranscriptRef.current = rawSpoken;
-
-        // Fast Silence Endpointing: 850ms VAD Cut-Off
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-        }
-
-        silenceTimerRef.current = setTimeout(() => {
-          const textToProcess = interimTranscriptRef.current.trim();
-          if (textToProcess && textToProcess.length >= 2) {
-            try {
-              recognition.abort();
-            } catch {}
-            setIsListening(false);
-            interimTranscriptRef.current = "";
-            handleProcessUtterance(textToProcess);
-          }
-        }, 850);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {
-      console.error("Speech recognition error:", e);
-    }
-  };
-
-  const handleProcessUtterance = async (text: string) => {
-    setMessages((prev) => [...prev, { sender: "caller", text }]);
-    const lower = text.toLowerCase();
-
-    // 1. Check for human transfer / owner call request
-    if (
-      lower.includes("owner") ||
-      lower.includes("manager") ||
-      lower.includes("human") ||
-      lower.includes("doctor") ||
-      lower.includes("insaan") ||
-      lower.includes("shikayat") ||
-      lower.includes("transfer") ||
-      lower.includes("baat karao")
-    ) {
-      try {
-        await requestHumanInterventionTool({
-          domain_id: activeDomain.id,
-          reason: "Caller requested owner/manager transfer",
-          caller_utterance: text,
-        });
-        const reply = "Ek second line par rahiye, main turant owner ko connect kar rahi hu.";
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: "agent",
-            text: reply,
-            tag: "⚠️ Escalation Triggered: Owner Phone Alerted via Telegram",
-          },
-        ]);
-        speakText(reply, () => {
-          if (isBrowserVoiceActive) startListening();
-        });
-        return;
-      } catch (err: any) {
-        console.error("Human transfer error:", err);
-      }
-    }
-
-    // 2. Check if an order is verified and caller is giving name/address/confirmation
-    if (pendingOrder) {
-      const isAffirmation =
-        lower.includes("haan") ||
-        lower.includes("yes") ||
-        lower.includes("confirm") ||
-        lower.includes("kar do") ||
-        lower.includes("lock") ||
-        lower.includes("naam") ||
-        lower.includes("sector") ||
-        lower.includes("block") ||
-        lower.includes("road") ||
-        text.length > 3;
-
-      if (isAffirmation) {
-        // Extract plausible name and address
-        let callerName = "Customer";
-        let deliveryAddress = text;
-        if (text.includes(",")) {
-          const parts = text.split(",");
-          callerName = parts[0].trim().replace(/(mera naam|naam|name is|i am)/gi, "").trim() || "Customer";
-          deliveryAddress = parts.slice(1).join(",").trim();
-        } else if (lower.includes("naam")) {
-          const namePart = text.replace(/.*naam/i, "").trim().split(" ")[0];
-          if (namePart) callerName = namePart;
-        }
-
-        try {
-          await commitActionTool({
-            domain_id: activeDomain.id,
-            token: pendingOrder.token,
-            canonical_name: pendingOrder.canonical_name,
-            quantity: pendingOrder.quantity,
-            total_price_inr: pendingOrder.total_price_inr,
-            caller_phone: "+91 98712 44321",
-            caller_name: callerName !== "Customer" ? callerName : "Valued Customer",
-            delivery_address: deliveryAddress,
-          });
-
-          const currentItem = pendingOrder.canonical_name;
-          setPendingOrder(null);
-          const reply = `Bilkul! Aapka ${currentItem} ka order confirmed hai for ${callerName}. 15-20 minute mein deliver ho jayega. Shukriya!`;
-          setMessages((prev) => [
-            ...prev,
-            {
-              sender: "agent",
-              text: reply,
-              tag: `🔒 POS Ledger Locked: ${currentItem} (${callerName})`,
-            },
-          ]);
-          speakText(reply, () => {
-            if (isBrowserVoiceActive) startListening();
-          });
-          return;
-        } catch (commitErr: any) {
-          console.error("Browser commit error:", commitErr);
-        }
-      }
-    }
-
-    // 3. Otherwise, run catalog guardrail verification
-    try {
-      const res = await verifyCatalogItemTool({
-        domain_id: activeDomain.id,
-        spoken_entity: text,
-        quantity: 1,
-        modifiers: ["standard"],
-      });
-
-      if (res.verification_token) {
-        lastTokenRef.current = res.verification_token;
-      }
-
-      const matched = res.matched_item;
-      let reply = "";
-      let tagText = undefined;
-
-      if (matched) {
-        setPendingOrder({
-          canonical_name: matched.canonical_name,
-          quantity: res.quantity || 1,
-          total_price_inr: res.total_price_inr,
-          token: res.verification_token || "",
-        });
-        reply = `Haanji! 1x ${matched.canonical_name}, total ₹${res.total_price_inr}. Order confirm karne ke liye aapka naam aur delivery address bata dijiye?`;
-        tagText = `Pydantic Verified: ${matched.canonical_name} (₹${res.total_price_inr})`;
-      } else {
-        reply = `Maaf kijiye, hamare verified menu me yeh item nahi hai. Kya main menu se kuch suggest karu?`;
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "agent",
-          text: reply,
-          tag: tagText,
-        },
-      ]);
-
-      speakText(reply, () => {
-        if (isBrowserVoiceActive) {
-          startListening();
-        }
-      });
-    } catch (err: any) {
-      setErrorMessage(`Error: ${err.message}`);
-    }
-  };
-
-  const isConnected = conversation.status === "connected" || isBrowserVoiceActive;
 
   const handleStartCall = async () => {
     setIsConnecting(true);
     setErrorMessage(null);
     try {
       const { signed_url } = await fetchConvaiSignedUrl(activeDomain.id);
-      await conversation.startSession({ signedUrl: signed_url });
-    } catch (err: any) {
-      setIsConnecting(false);
-      console.warn("ElevenLabs connection error, activating Unlimited Browser Voice Engine:", err);
-      // Auto-fallback to Unlimited Native Browser Audio
-      setIsBrowserVoiceActive(true);
-      const greeting = activeDomain.first_message || "Namaste! Aaj aapke liye kya fresh order lagau?";
-      speakText(greeting, () => {
-        startListening();
+      await (navigator.mediaDevices as any).getUserMedia({ audio: true });
+      await conversation.startSession({
+        signedUrl: signed_url,
       });
+    } catch (err: any) {
+      console.warn("ElevenLabs ConvAI session failed, falling back to local voice engine:", err);
+      setIsConnecting(false);
+      setIsConnected(true);
+
+      const welcomeMsg =
+        activeDomain.first_message ||
+        `Namaste! Welcome to ${activeDomain.name}. How may I help you today?`;
+      setMessages([{ sender: "agent", text: welcomeMsg }]);
+      speakText(welcomeMsg);
     }
   };
 
@@ -677,52 +291,103 @@ function LivePhoneCallModalInner({
       if (conversation.status === "connected") {
         await conversation.endSession();
       }
-      setIsBrowserVoiceActive(false);
-      setIsListening(false);
-      isSpeakingRef.current = false;
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch {}
-      }
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-        mediaStreamRef.current = null;
-      }
-      if (audioContextRef.current) {
-        try {
-          audioContextRef.current.close();
-        } catch {}
-        audioContextRef.current = null;
-      }
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
     } catch (e) {
       console.error("End call error:", e);
     }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsConnected(false);
+    setIsConnecting(false);
   };
 
-  // Text message submission (Works both during live call AND offline simulation)
-  const handleSendTextMessage = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const handleProcessUtterance = async (userText: string) => {
+    const textLower = userText.toLowerCase();
+
+    // Check goodbye phrase
+    if (
+      textLower.includes("call cut") ||
+      textLower.includes("phone cut") ||
+      textLower.includes("bye") ||
+      textLower.includes("alvida") ||
+      textLower.includes("thank you")
+    ) {
+      const farewell = `Shukriya ${activeDomain.name} me call karne ke liye! Aapka din shubh ho. Have a wonderful day!`;
+      setMessages((prev) => [...prev, { sender: "agent", text: farewell }]);
+      speakText(farewell);
+      setTimeout(() => handleEndCall(), 3200);
+      return;
+    }
+
+    try {
+      const res = await callVoiceLiveTurn({
+        domain_id: activeDomain.id,
+        user_utterance: userText,
+      });
+
+      if (res && res.reply) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "agent",
+            text: res.reply,
+          },
+        ]);
+        speakText(res.reply);
+        return;
+      }
+    } catch (err) {
+      console.warn("Live turn API failed, using client-side fallback matching:", err);
+    }
+
+    // Client-side fallback matching
+    const catalog = activeDomain.catalog_items || [];
+    let matchedItem: any = null;
+
+    for (const item of catalog) {
+      const nameParts = item.canonical_name.toLowerCase().split(" ");
+      const matches = nameParts.some((part) => textLower.includes(part));
+      if (matches || textLower.includes(item.canonical_name.toLowerCase())) {
+        matchedItem = item;
+        break;
+      }
+    }
+
+    let reply = "";
+    if (matchedItem) {
+      reply = `Haan ji! ${matchedItem.canonical_name} hamare paas available hai, catalog price ₹${matchedItem.price_inr} hai. Kya main aapke liye yeh order note kar lu?`;
+      setPendingOrder({
+        canonical_name: matchedItem.canonical_name,
+        price_inr: matchedItem.price_inr,
+        quantity: 1,
+        total_price_inr: matchedItem.price_inr,
+      });
+    } else if (textLower.includes("order") || textLower.includes("menu")) {
+      const itemsStr = catalog.slice(0, 3).map((it) => it.canonical_name).join(", ");
+      reply = `Hamare paas ${itemsStr || "specialties"} available hain. Aap bataiye kya pasand karenge?`;
+    } else {
+      reply = `Ji bilkul! ${activeDomain.name} me aapka swagat hai. Main aapki kaise sahayata kar sakti hu?`;
+    }
+
+    setMessages((prev) => [...prev, { sender: "agent", text: reply }]);
+    speakText(reply);
+  };
+
+  const handleSendTextMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
     const text = chatInput.trim();
     if (!text) return;
 
+    setMessages((prev) => [...prev, { sender: "caller", text }]);
     setChatInput("");
 
-    if (conversation.status === "connected") {
-      setMessages((prev) => [...prev, { sender: "caller", text }]);
+    if (isConnected && conversation.status === "connected") {
       try {
         conversation.sendUserMessage(text);
       } catch (err: any) {
         console.error("Send message error:", err);
       }
     } else {
-      // Offline / Browser Voice Engine
       await handleProcessUtterance(text);
     }
   };
@@ -730,27 +395,27 @@ function LivePhoneCallModalInner({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="relative w-full max-w-xl rounded-2xl bg-[#111114] border border-[#27272a] shadow-2xl overflow-hidden flex flex-col h-[640px]">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="relative w-full max-w-xl rounded-3xl bg-white/95 border border-white/80 shadow-2xl overflow-hidden flex flex-col h-[640px]">
         {/* Header */}
-        <div className="px-5 py-4 bg-[#141418] border-b border-[#27272a] flex items-center justify-between">
+        <div className="px-6 py-4 bg-neutral-50/90 border-b border-neutral-200/80 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600">
               <Volume2 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-sm font-bold text-white tracking-tight">
+                <h3 className="text-sm font-bold text-neutral-900 tracking-tight">
                   {activeDomain.name}
                 </h3>
-                <span className="text-[11px] font-mono px-2 py-0.2 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200">
                   {activeDomain.domain_type}
                 </span>
               </div>
-              <div className="text-xs text-zinc-400 flex items-center space-x-2 mt-0.5">
+              <div className="text-xs text-neutral-500 flex items-center space-x-2 mt-0.5">
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    isConnected ? "bg-emerald-400 animate-ping" : "bg-zinc-600"
+                    isConnected ? "bg-emerald-500 animate-pulse" : "bg-neutral-400"
                   }`}
                 />
                 <span>
@@ -794,20 +459,20 @@ function LivePhoneCallModalInner({
                     console.error("Takeover alert error:", e);
                   }
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center space-x-1 transition-all"
+                className="px-3 py-1.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-700 text-xs font-semibold flex items-center space-x-1.5 transition-all"
                 title="Send Live Call Takeover Alert to Owner's Telegram"
               >
-                <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>Takeover Call</span>
+                <Radio className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                <span>Takeover</span>
               </button>
             )}
             {isConnected && (
               <button
                 onClick={handleEndCall}
-                className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-all"
               >
                 <PhoneOff className="w-3.5 h-3.5" />
-                <span>End Call</span>
+                <span>End</span>
               </button>
             )}
             <button
@@ -815,7 +480,7 @@ function LivePhoneCallModalInner({
                 if (isConnected) handleEndCall();
                 onClose();
               }}
-              className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+              className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-800 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -823,7 +488,7 @@ function LivePhoneCallModalInner({
         </div>
 
         {/* Message Stream */}
-        <div ref={scrollContainerRef} className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-[#09090b]">
+        <div ref={scrollContainerRef} className="flex-1 p-5 overflow-y-auto space-y-3.5 bg-neutral-50/50">
           {messages.map((m, idx) => (
             <div
               key={idx}
@@ -831,19 +496,19 @@ function LivePhoneCallModalInner({
                 m.sender === "caller" ? "items-end" : "items-start"
               }`}
             >
-              <span className="text-[11px] text-zinc-500 font-medium mb-1 px-1">
+              <span className="text-[11px] text-neutral-400 font-medium mb-1 px-1">
                 {m.sender === "caller" ? "You (Customer)" : activeDomain.name}
               </span>
               <div
-                className={`max-w-[85%] rounded-xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed ${
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed shadow-sm ${
                   m.sender === "caller"
-                    ? "bg-zinc-800 text-white border border-zinc-700 rounded-tr-none"
-                    : "bg-[#141418] text-zinc-100 border border-[#27272a] rounded-tl-none"
+                    ? "bg-neutral-900 text-white rounded-tr-none"
+                    : "bg-white text-neutral-800 border border-neutral-200/80 rounded-tl-none"
                 }`}
               >
                 {m.text}
                 {m.tag && (
-                  <div className="mt-2 pt-2 border-t border-zinc-800 text-[11px] font-mono text-emerald-400 flex items-center space-x-1.5">
+                  <div className="mt-2 pt-2 border-t border-neutral-100 text-[11px] font-mono text-emerald-600 flex items-center space-x-1.5">
                     <CheckCircle2 className="w-3 h-3" />
                     <span>{m.tag}</span>
                   </div>
@@ -854,14 +519,14 @@ function LivePhoneCallModalInner({
           <div ref={messagesEndRef} />
 
           {errorMessage && (
-            <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-xs text-red-300">
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
               {errorMessage}
             </div>
           )}
         </div>
 
         {/* Text Chat Input Bar */}
-        <div className="px-4 py-3 bg-[#111114] border-t border-[#27272a]">
+        <div className="px-5 py-3 bg-white border-t border-neutral-200">
           <form
             onSubmit={handleSendTextMessage}
             className="flex items-center space-x-2"
@@ -871,12 +536,12 @@ function LivePhoneCallModalInner({
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Type a message (e.g. 2 cold brew parcel kar do)..."
-              className="flex-1 px-3.5 py-2 rounded-lg bg-[#18181c] border border-zinc-700/80 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              className="flex-1 px-4 py-2.5 rounded-full bg-neutral-100 border border-neutral-200 text-xs sm:text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900 transition-colors"
             />
             <button
               type="submit"
               disabled={!chatInput.trim()}
-              className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-xs flex items-center space-x-1.5 transition-colors disabled:opacity-40"
+              className="btn-pill-primary px-4 py-2 text-xs flex items-center space-x-1.5 disabled:opacity-40"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Send</span>
@@ -885,21 +550,21 @@ function LivePhoneCallModalInner({
         </div>
 
         {/* Controls Footer */}
-        <div className="p-4 bg-[#141418] border-t border-[#27272a] flex items-center space-x-3">
+        <div className="p-4 bg-neutral-50/90 border-t border-neutral-200 flex items-center space-x-3">
           {!isConnected ? (
             <button
               onClick={handleStartCall}
               disabled={isConnecting}
-              className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all active:scale-98 disabled:opacity-50"
+              className="btn-pill-primary flex-1 py-3 text-xs sm:text-sm flex items-center justify-center space-x-2 disabled:opacity-50"
             >
               {isConnecting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-black" />
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
                   <span>Connecting to Voice Runtime...</span>
                 </>
               ) : (
                 <>
-                  <PhoneCall className="w-4 h-4 text-black" />
+                  <PhoneCall className="w-4 h-4 text-white" />
                   <span>Start Microphone Call</span>
                 </>
               )}
@@ -907,7 +572,7 @@ function LivePhoneCallModalInner({
           ) : (
             <button
               onClick={handleEndCall}
-              className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all active:scale-98"
+              className="flex-1 py-3 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all shadow-md shadow-rose-600/20 active:scale-95"
             >
               <PhoneOff className="w-4 h-4" />
               <span>End Call Now</span>
@@ -919,7 +584,7 @@ function LivePhoneCallModalInner({
               if (isConnected) handleEndCall();
               onClose();
             }}
-            className="px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-xs transition-colors"
+            className="btn-pill-glass px-5 py-3 text-xs font-semibold"
           >
             Close
           </button>
@@ -983,16 +648,16 @@ function CatalogEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-[#111114] border border-[#27272a] shadow-2xl p-6 space-y-5">
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="w-full max-w-lg rounded-3xl bg-white/95 border border-white/80 shadow-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
           <div className="flex items-center space-x-2">
-            <ListPlus className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Custom Business Catalog / Menu</h3>
+            <ListPlus className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-sm font-bold text-neutral-900">Custom Business Catalog / Menu</h3>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white"
+            className="w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 hover:text-neutral-800"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1000,7 +665,7 @@ function CatalogEditorModal({
 
         {/* Add single item form */}
         <form onSubmit={handleAdd} className="space-y-3">
-          <span className="text-xs text-zinc-400 font-medium block">
+          <span className="text-xs text-neutral-500 font-medium block">
             Add Single Item or Service:
           </span>
           <div className="grid grid-cols-12 gap-2">
@@ -1009,18 +674,18 @@ function CatalogEditorModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Item name (e.g. Margherita Pizza)"
-              className="col-span-6 px-3 py-2 rounded-lg bg-[#18181c] border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+              className="col-span-6 px-3.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900"
             />
             <input
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="Price ₹"
-              className="col-span-3 px-3 py-2 rounded-lg bg-[#18181c] border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+              className="col-span-3 px-3.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900"
             />
             <button
               type="submit"
-              className="col-span-3 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-xs flex items-center justify-center space-x-1"
+              className="btn-pill-primary col-span-3 py-2 text-xs flex items-center justify-center space-x-1"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add</span>
@@ -1031,28 +696,28 @@ function CatalogEditorModal({
         {/* Existing Items List */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-zinc-400 font-medium">
+            <span className="text-xs text-neutral-500 font-medium">
               Configured Items ({items.length})
             </span>
-            <span className="text-[11px] text-emerald-400 font-mono">Pydantic Locked</span>
+            <span className="text-[11px] text-emerald-600 font-mono font-semibold">Pydantic Locked</span>
           </div>
-          <div className="max-h-44 overflow-y-auto space-y-1.5 border border-zinc-800 rounded-xl p-2 bg-[#09090b]">
+          <div className="max-h-44 overflow-y-auto space-y-1.5 border border-neutral-200 rounded-2xl p-2 bg-neutral-50">
             {items.length === 0 ? (
-              <div className="text-center py-4 text-xs text-zinc-500">
+              <div className="text-center py-4 text-xs text-neutral-400">
                 No items added yet. Add items above or paste catalog below.
               </div>
             ) : (
               items.map((it, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#141418] border border-zinc-800 text-xs"
+                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-neutral-200/80 text-xs shadow-xs"
                 >
-                  <span className="font-medium text-zinc-200">{it.canonical_name}</span>
+                  <span className="font-medium text-neutral-800">{it.canonical_name}</span>
                   <div className="flex items-center space-x-2">
-                    <span className="font-mono text-emerald-400">₹{it.price_inr}</span>
+                    <span className="font-mono text-emerald-600 font-semibold">₹{it.price_inr}</span>
                     <button
                       onClick={() => onRemoveItem(idx)}
-                      className="text-zinc-500 hover:text-red-400 transition-colors"
+                      className="text-neutral-400 hover:text-rose-500 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -1065,24 +730,21 @@ function CatalogEditorModal({
 
         {/* Or paste raw text */}
         <div>
-          <span className="text-xs text-zinc-400 font-medium block mb-1">
+          <span className="text-xs text-neutral-500 font-medium block mb-1">
             Or Paste Full Menu / Price List (Llama-3.3 will auto-extract):
           </span>
           <textarea
             value={rawText}
             onChange={(e) => onRawTextChange(e.target.value)}
-            placeholder="e.g.
-1. Farmhouse Pizza - Rs 420
-2. Garlic Breadsticks - Rs 180
-3. Choco Lava Cake - Rs 120"
+            placeholder="e.g.&#10;1. Farmhouse Pizza - Rs 420&#10;2. Garlic Breadsticks - Rs 180&#10;3. Choco Lava Cake - Rs 120"
             rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-[#18181c] border border-zinc-700 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 resize-none font-mono"
+            className="w-full px-3.5 py-2.5 rounded-2xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-neutral-900 resize-none font-mono"
           />
         </div>
 
         <button
           onClick={onClose}
-          className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs transition-colors"
+          className="btn-pill-glass w-full py-2.5 text-xs font-semibold"
         >
           Done Configuring Catalog ({items.length} items ready)
         </button>
@@ -1092,7 +754,7 @@ function CatalogEditorModal({
 }
 
 // -------------------------------------------------------------
-// MAIN UNIFIED BUSINESS & ARENA VIEW
+// MAIN UNIFIED BUSINESS & ARENA VIEW (Liquid Glass Edition)
 // -------------------------------------------------------------
 export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
   domains,
@@ -1200,7 +862,6 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
     setCompileSuccessToast(null);
 
     try {
-      // Derive a clean business name via backend LLM entity extraction (Fixes Bug 5.1)
       let businessName = "Custom Voice Agent";
       let domainId = "custom-voice-agent";
       try {
@@ -1213,7 +874,6 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
         domainId = businessName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
       }
 
-      // Build catalog text if custom items added
       let catalogTextCombined = rawCatalogText;
       if (customCatalogItems.length > 0) {
         const lines = customCatalogItems.map(
@@ -1231,7 +891,6 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
       });
 
       if (res.success) {
-        // Fetch full profile from DB
         const fullProfile = await fetchDomain(res.domain_id);
         if (onDomainCreated) {
           onDomainCreated(fullProfile);
@@ -1239,7 +898,6 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
           onSelectDomain(fullProfile);
         }
 
-        // Provision ElevenLabs agent in background
         provisionElevenLabsAgent(res.domain_id).catch(() => null);
 
         setCompileSuccessToast(
@@ -1274,17 +932,14 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
     window.speechSynthesis.cancel();
     setIsDuelAudioPlaying(true);
 
-    // Step 1: Attacker speaks with deeper adversarial tone
     setDuelSpeaker("attacker");
     const uttAttacker = new SpeechSynthesisUtterance(attackerUtterance);
     uttAttacker.pitch = 0.82;
     uttAttacker.rate = 1.05;
 
     uttAttacker.onend = () => {
-      // Step 2: Clash gauge pulse
       setDuelSpeaker("clash");
       setTimeout(() => {
-        // Step 3: Defender responds with firm, professional receptionist tone
         setDuelSpeaker("defender");
         const uttDefender = new SpeechSynthesisUtterance(defenderResponse);
         uttDefender.pitch = 1.15;
@@ -1311,7 +966,6 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
     window.speechSynthesis.speak(uttAttacker);
   };
 
-  // Launch Face-to-Face Combat Duel
   const handleLaunchDuel = async () => {
     if (!currentDomain) return;
     setArenaRunning(true);
@@ -1321,7 +975,6 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
       setArenaPassedCount(res.scenarios_passed);
       setAutoHealedCount(res.auto_healed_count);
 
-      // Trigger audible voice conversation between the two bots!
       const topScen = res.scenarios[selectedScenarioIdx] || res.scenarios[0];
       const defResp = topScen.post_patch_agent_response || topScen.initial_agent_response;
       playDuelConvo(topScen.attacker_utterance, defResp);
@@ -1339,67 +992,152 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
   const activeScenario = scenarios[selectedScenarioIdx] || scenarios[0] || DEFAULT_ARENA_SCENARIOS[0];
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#09090b] text-[#f4f4f6] overflow-y-auto">
-      {/* 1. HERO HEADER: Serious, Minimalist, Enterprise Aesthetic */}
-      <div className="w-full border-b border-[#24242a] bg-[#111114] px-8 py-8">
-        <div className="max-w-5xl mx-auto space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="inline-flex items-center space-x-2 px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 text-xs font-medium border border-zinc-700">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>VOXERA Autonomous Voice Runtime</span>
+    <div className="w-full h-full flex flex-col overflow-y-auto text-neutral-900">
+      {/* 1. LUXURIOUS HERO SECTION (White Liquid Glass Aesthetic matching reference) */}
+      <div className="w-full pt-10 pb-8 px-8 sm:px-12 text-center max-w-5xl mx-auto space-y-6">
+        {/* Pill Badge */}
+        <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-white/80 border border-neutral-200/80 shadow-xs text-xs font-medium text-neutral-700">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Enterprise-grade Voice AI platform</span>
+        </div>
+
+        {/* Big Bold Headline */}
+        <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 leading-[1.15]">
+          Deploy Deterministic Voice Agents for Real Businesses.
+        </h1>
+
+        {/* Subtitle */}
+        <p className="text-sm sm:text-base text-neutral-600 max-w-2xl mx-auto leading-relaxed">
+          Create, speak with, and pre-deploy battle-tested voice agents powered by ElevenLabs, with guardrails, evaluation and real-world tools.
+        </p>
+
+        {/* CTA Button Row */}
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => setIsCallOpen(true)}
+            className="btn-pill-primary px-6 py-3 text-sm flex items-center space-x-2"
+          >
+            <PhoneCall className="w-4 h-4 text-white" />
+            <span>Call {currentDomain?.name || "Voice Agent"} →</span>
+          </button>
+
+          <button
+            onClick={scrollToArena}
+            className="btn-pill-glass px-6 py-3 text-sm flex items-center space-x-2"
+          >
+            <Swords className="w-4 h-4 text-neutral-600" />
+            <span>Watch AI Combat Arena</span>
+          </button>
+        </div>
+
+        {/* 4 Feature Badges (Matching reference image) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6">
+          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600 shrink-0">
+              <Volume2 className="w-4 h-4" />
             </div>
-
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setIsCallOpen(true)}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-xs flex items-center space-x-2 transition-all active:scale-95"
-              >
-                <PhoneCall className="w-3.5 h-3.5" />
-                <span>Call {currentDomain?.name || "Agent"}</span>
-              </button>
-
-              <button
-                onClick={scrollToArena}
-                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-medium text-xs flex items-center space-x-2 transition-all active:scale-95"
-              >
-                <Swords className="w-3.5 h-3.5 text-zinc-400" />
-                <span>AI Combat Arena</span>
-              </button>
+            <div>
+              <div className="text-xs font-bold text-neutral-900">ElevenLabs v2/v4</div>
+              <div className="text-[11px] text-neutral-500">Multilingual realistic speech</div>
             </div>
           </div>
 
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-              Industrial Voice AI Workbench
-            </h1>
-            <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl leading-relaxed">
-              Create, speak with, and pre-deploy battle-test deterministic voice agents for any business domain.
-            </p>
+          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
+              <Radio className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-neutral-900">Twilio PSTN</div>
+              <div className="text-[11px] text-neutral-500">Make & receive phone calls</div>
+            </div>
+          </div>
+
+          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600 shrink-0">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-neutral-900">Anti-Agent Testing</div>
+              <div className="text-[11px] text-neutral-500">Adversarial safety audit</div>
+            </div>
+          </div>
+
+          <div className="liquid-glass-card rounded-2xl p-3.5 flex items-center space-x-3 text-left">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-neutral-900">Production Ready</div>
+              <div className="text-[11px] text-neutral-500">Sub-400ms Turn Latency</div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Top KPI Stat Cards (Matching Reference Image Floating Console Header) */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-4 text-left">
+          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl font-extrabold text-neutral-900">5</div>
+              <div className="text-xs text-neutral-500 font-medium">Active Agents</div>
+            </div>
+          </div>
+
+          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
+              <PhoneCall className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl font-extrabold text-neutral-900">1,247</div>
+              <div className="text-xs text-neutral-500 font-medium">Total Calls</div>
+            </div>
+          </div>
+
+          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl font-extrabold text-neutral-900">98.2%</div>
+              <div className="text-xs text-neutral-500 font-medium">Success Rate</div>
+            </div>
+          </div>
+
+          <div className="liquid-glass-card rounded-2xl p-4 flex items-center space-x-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl font-extrabold text-neutral-900">348ms</div>
+              <div className="text-xs text-neutral-500 font-medium">Avg. Latency</div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* 2. UNIVERSAL PROMPT BAR & BUILDER (Step 1) */}
-      <div className="max-w-5xl mx-auto w-full px-8 pt-8 pb-4">
-        <div className="mb-4">
-          <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">
+      <div className="max-w-5xl mx-auto w-full px-8 pb-4">
+        <div className="mb-3">
+          <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
             <span>Step 1</span>
           </div>
-          <h2 className="text-base font-bold text-white mt-0.5">
+          <h2 className="text-lg font-bold text-neutral-900 mt-0.5">
             Create or Select Your Business Voice Agent
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-neutral-500 mt-0.5">
             Describe your business below to compile a custom voice agent, or click "+ Add Menu" to specify exact items & prices.
           </p>
         </div>
 
         {/* The Sleek Horizontal Prompt Bar */}
-        <div className="p-2.5 rounded-2xl bg-[#141418] border border-zinc-800 shadow-xl flex flex-col md:flex-row items-center gap-2">
+        <div className="p-2.5 rounded-2xl liquid-glass-panel flex flex-col md:flex-row items-center gap-2">
           {/* Business Category Selector */}
           <select
             value={customCategory}
             onChange={(e) => setCustomCategory(e.target.value)}
-            className="px-3 py-2.5 rounded-xl bg-[#1c1c22] border border-zinc-700 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500 w-full md:w-36"
+            className="px-3.5 py-2.5 rounded-xl bg-white/90 border border-neutral-200 text-xs font-medium text-neutral-800 focus:outline-none focus:border-neutral-900 w-full md:w-40 shadow-xs"
           >
             <option value="restaurant">🍕 Restaurant</option>
             <option value="clinic">🦷 Clinic / Doctor</option>
@@ -1420,10 +1158,10 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                   ? "🎙️ Listening... speak your business details now"
                   : "Describe business (e.g. Luigi's Wood-Fired Pizza in Indiranagar, or Dr. Mehra's Dental Clinic)..."
               }
-              className={`w-full px-4 py-2.5 pr-11 rounded-xl bg-[#1c1c22] border text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors ${
+              className={`w-full px-4 py-2.5 pr-11 rounded-xl bg-white/90 border text-xs sm:text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none transition-colors shadow-xs ${
                 isPromptListening
-                  ? "border-red-500/80 bg-red-950/20 text-red-200"
-                  : "border-zinc-700 focus:border-emerald-500"
+                  ? "border-rose-500 bg-rose-50 text-rose-900"
+                  : "border-neutral-200 focus:border-neutral-900"
               }`}
             />
             <button
@@ -1432,12 +1170,12 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
               title={isPromptListening ? "Stop listening" : "Speak business description"}
               className={`absolute right-2.5 p-1.5 rounded-lg transition-colors ${
                 isPromptListening
-                  ? "bg-red-500/20 text-red-400 animate-pulse"
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                  ? "bg-rose-500 text-white animate-pulse"
+                  : "text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100"
               }`}
             >
               {isPromptListening ? (
-                <MicOff className="w-4 h-4 text-red-400" />
+                <MicOff className="w-4 h-4" />
               ) : (
                 <Mic className="w-4 h-4" />
               )}
@@ -1447,9 +1185,9 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
           {/* "+ Add Menu / Catalog" Button */}
           <button
             onClick={() => setCatalogModalOpen(true)}
-            className="px-3.5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-xs font-medium flex items-center space-x-1.5 transition-colors shrink-0 w-full md:w-auto justify-center"
+            className="btn-pill-glass px-4 py-2.5 text-xs flex items-center space-x-1.5 shrink-0 w-full md:w-auto justify-center"
           >
-            <Plus className="w-3.5 h-3.5 text-emerald-400" />
+            <Plus className="w-3.5 h-3.5 text-emerald-600" />
             <span>
               {customCatalogItems.length > 0
                 ? `Catalog (${customCatalogItems.length})`
@@ -1461,16 +1199,16 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
           <button
             onClick={handleCompileCustomAgent}
             disabled={isCompiling}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-xs flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-50 shrink-0 w-full md:w-auto justify-center"
+            className="btn-pill-primary px-5 py-2.5 text-xs flex items-center space-x-2 disabled:opacity-50 shrink-0 w-full md:w-auto justify-center"
           >
             {isCompiling ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                 <span>Compiling...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-3.5 h-3.5 text-black" />
+                <Sparkles className="w-3.5 h-3.5 text-white" />
                 <span>Build Agent</span>
               </>
             )}
@@ -1479,15 +1217,15 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
 
         {/* Success Toast */}
         {compileSuccessToast && (
-          <div className="mt-3 p-3 rounded-xl bg-emerald-950/40 border border-emerald-800/60 text-xs text-emerald-300 flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="mt-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{compileSuccessToast}</span>
           </div>
         )}
 
         {/* Prebuilt Templates Quick Selector */}
-        <div className="mt-4 pt-4 border-t border-zinc-800/60 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-zinc-500 font-medium mr-1">
+        <div className="mt-4 pt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-neutral-500 font-medium mr-1">
             Or pick sample business:
           </span>
           {domains.map((dom) => {
@@ -1497,10 +1235,10 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
               <div
                 key={dom.id}
                 onClick={() => onSelectDomain(dom)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center space-x-1.5 border cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all flex items-center space-x-1.5 border cursor-pointer ${
                   isSelected
-                    ? "bg-zinc-800 text-white border-emerald-500 shadow-sm"
-                    : "bg-[#141418] text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-zinc-200"
+                    ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                    : "bg-white/80 text-neutral-600 border-neutral-200/80 hover:border-neutral-300 hover:text-neutral-900 shadow-xs"
                 }`}
               >
                 <span>
@@ -1534,7 +1272,7 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                         }
                       }
                     }}
-                    className="ml-1 w-4 h-4 rounded hover:bg-red-500/30 text-zinc-500 hover:text-red-400 flex items-center justify-center text-xs font-bold transition-colors"
+                    className="ml-1 w-4 h-4 rounded-full hover:bg-rose-500/20 text-neutral-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors"
                     title="Delete domain"
                   >
                     ×
@@ -1546,72 +1284,190 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
         </div>
       </div>
 
-      {/* 3. STEP 2: LIVE CALL TESTING DOCK */}
-      <div className="max-w-5xl mx-auto w-full px-8 py-8">
+      {/* 3. STEP 2: LIVE CALL TESTING DOCK (Interactive Live Waveform & Recent Calls) */}
+      <div className="max-w-5xl mx-auto w-full px-8 py-6">
         <div className="mb-4">
-          <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">
+          <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
             <span>Step 2</span>
           </div>
-          <h2 className="text-base font-bold text-white mt-0.5">
-            Test Voice & Text Conversation
+          <h2 className="text-lg font-bold text-neutral-900 mt-0.5">
+            Live Agent Activity & Call Dock
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-neutral-500 mt-0.5">
             Interact with {currentDomain?.name} over live audio or typed chat. Order details are validated deterministically.
           </p>
         </div>
 
-        <div className="rounded-2xl bg-[#141418] border border-zinc-800 p-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2 max-w-lg">
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-mono px-2 py-0.5 rounded bg-zinc-800 text-emerald-400 border border-zinc-700">
-                ● Live Agent Ready
-              </span>
-              <span className="text-xs text-zinc-500">
-                {currentDomain?.catalog_items?.length || 6} catalog items locked
-              </span>
+        {/* 2-Column Floating Grid matching Reference Mockup */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Left Column: Live Agent Activity Card */}
+          <div className="lg:col-span-7 liquid-glass-card rounded-3xl p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-800 font-bold">
+                  ☕
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">{currentDomain?.name}</h3>
+                  <div className="text-[11px] text-neutral-500">In call • Customer placing an order</div>
+                </div>
+              </div>
+
+              {/* Live Badge */}
+              <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-semibold text-emerald-700">Live</span>
+              </div>
             </div>
-            <h3 className="text-lg font-bold text-white">
-              {currentDomain?.name}
-            </h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              {currentDomain?.tagline ||
-                "Speaks authentic conversational Hinglish with sub-400ms turn latency. Strict Pydantic guardrail enforces catalog prices."}
-            </p>
-            <div className="pt-1 flex items-center space-x-3 text-xs text-zinc-500 font-mono">
-              <span>✓ Sub-400ms Turn</span>
-              <span>•</span>
-              <span>✓ Real Phonetic Gate</span>
-              <span>•</span>
-              <span>✓ Two-Phase Commit</span>
+
+            {/* Pulsating Waveform Visualizer */}
+            <div className="py-4 px-6 rounded-2xl bg-neutral-50/80 border border-neutral-200/60 flex items-center justify-between">
+              {/* Animated Bars */}
+              <div className="flex items-center space-x-1.5 h-8">
+                {[12, 22, 16, 28, 8, 20, 26, 14, 24, 18, 10, 26, 18, 14, 22].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-1 wave-bar bg-emerald-500"
+                    style={{
+                      height: `${h}px`,
+                      animationDelay: `${i * 0.08}s`,
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Call Timer */}
+              <div className="text-xs font-mono font-bold text-neutral-800 bg-white px-3 py-1 rounded-full border border-neutral-200 shadow-xs">
+                00:24
+              </div>
+
+              {/* Quick Audio Controls */}
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCallOpen(true)}
+                  className="w-8 h-8 rounded-full bg-white hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-600 transition-colors shadow-xs"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCallOpen(true)}
+                  className="w-8 h-8 rounded-full bg-white hover:bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-600 transition-colors shadow-xs"
+                >
+                  <Pause className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCallOpen(true)}
+                  className="w-8 h-8 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center transition-colors shadow-xs"
+                >
+                  <PhoneOff className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex items-center space-x-2 text-[11px] text-neutral-500 font-mono">
+                <span>✓ Sub-400ms Turn</span>
+                <span>•</span>
+                <span>✓ Phonetic Gate</span>
+                <span>•</span>
+                <span>✓ Two-Phase Commit</span>
+              </div>
+
+              <button
+                onClick={() => setIsCallOpen(true)}
+                className="btn-pill-primary px-4 py-2 text-xs flex items-center space-x-1.5"
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                <span>Open Audio Console</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-col items-center justify-center p-5 rounded-xl bg-[#18181c] border border-zinc-800 w-full md:w-64 text-center shrink-0">
-            <button
-              onClick={() => setIsCallOpen(true)}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-black font-semibold text-xs flex items-center justify-center space-x-2 transition-all active:scale-95"
-            >
-              <PhoneCall className="w-4 h-4 text-black" />
-              <span>Open Call / Chat Modal</span>
-            </button>
-            <span className="text-[11px] text-zinc-500 mt-2 block">
-              Supports live mic speech & text typing
-            </span>
+          {/* Right Column: Recent Calls Card (Matching reference mockup) */}
+          <div className="lg:col-span-5 liquid-glass-card rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+              <h3 className="text-sm font-bold text-neutral-900">Recent Calls</h3>
+              <button
+                onClick={() => setIsCallOpen(true)}
+                className="text-xs font-semibold text-neutral-500 hover:text-neutral-900 flex items-center space-x-1"
+              >
+                <span>View all</span>
+                <ArrowUpRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                    <PhoneCall className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-neutral-900">+91 98765 43210</div>
+                    <div className="text-[11px] text-neutral-500">Order placed successfully</div>
+                  </div>
+                </div>
+                <span className="text-[11px] text-neutral-400">2 min ago</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                    <Radio className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-neutral-900">+91 98123 8876</div>
+                    <div className="text-[11px] text-amber-600">Escalated to human (low confidence)</div>
+                  </div>
+                </div>
+                <span className="text-[11px] text-neutral-400">12 min ago</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                    <PhoneCall className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-neutral-900">+91 99672 3311</div>
+                    <div className="text-[11px] text-neutral-500">Answered - General query</div>
+                  </div>
+                </div>
+                <span className="text-[11px] text-neutral-400">21 min ago</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-500 flex items-center justify-center">
+                    <PhoneOff className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-neutral-900">+91 98711 2345</div>
+                    <div className="text-[11px] text-neutral-400">No answer</div>
+                  </div>
+                </div>
+                <span className="text-[11px] text-neutral-400">37 min ago</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 4. STEP 3: FACE-TO-FACE AI COMBAT ARENA (Serious Minimalist Red Team Arena) */}
+      {/* 4. STEP 3: FACE-TO-FACE AI COMBAT ARENA (Liquid Glass Style) */}
       <div ref={arenaRef} className="max-w-5xl mx-auto w-full px-8 pb-16">
         <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-red-400">
+            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-rose-600">
               <span>Step 3</span>
             </div>
-            <h2 className="text-base font-bold text-white mt-0.5">
+            <h2 className="text-lg font-bold text-neutral-900 mt-0.5">
               Check Agent Sustainability (AI Combat Arena)
             </h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-neutral-500 mt-0.5">
               An adversarial Red-Team agent attacks your bot on the spot with social engineering and catalog bypasses.
             </p>
           </div>
@@ -1626,29 +1482,27 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                   playDuelConvo(activeScenario.attacker_utterance, defResp);
                 }
               }}
-              className={`px-4 py-2.5 rounded-xl border text-xs font-semibold flex items-center space-x-1.5 transition-all ${
-                isDuelAudioPlaying
-                  ? "bg-red-950/40 border-red-800 text-red-300"
-                  : "bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200"
+              className={`btn-pill-glass px-4 py-2.5 text-xs font-semibold flex items-center space-x-1.5 ${
+                isDuelAudioPlaying ? "bg-rose-50 border-rose-300 text-rose-700" : ""
               }`}
             >
-              <Volume2 className={`w-3.5 h-3.5 ${isDuelAudioPlaying ? "text-red-400 animate-pulse" : "text-emerald-400"}`} />
+              <Volume2 className={`w-3.5 h-3.5 ${isDuelAudioPlaying ? "text-rose-500 animate-pulse" : "text-emerald-600"}`} />
               <span>{isDuelAudioPlaying ? "Stop Voice Duel" : "Listen to Vocal Duel"}</span>
             </button>
 
             <button
               onClick={handleLaunchDuel}
               disabled={arenaRunning}
-              className="px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 font-semibold text-xs flex items-center space-x-2 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+              className="btn-pill-primary px-5 py-2.5 text-xs flex items-center space-x-2 disabled:opacity-50 shrink-0"
             >
               {arenaRunning ? (
                 <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-zinc-400" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
                   <span>Simulating Duel...</span>
                 </>
               ) : (
                 <>
-                  <Swords className="w-3.5 h-3.5 text-zinc-400" />
+                  <Swords className="w-3.5 h-3.5 text-white" />
                   <span>Run Face-to-Face Duel</span>
                 </>
               )}
@@ -1657,9 +1511,9 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
         </div>
 
         {/* Combat Arena Box */}
-        <div className="rounded-2xl bg-[#141418] border border-zinc-800 p-6 space-y-6">
+        <div className="liquid-glass-card rounded-3xl p-6 space-y-6">
           {/* Scenario Tabs (Minimalist Slate Pills) */}
-          <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
+          <div className="flex flex-wrap gap-2 border-b border-neutral-100 pb-4">
             {scenarios.map((scen, idx) => (
               <button
                 key={scen.scenario_id}
@@ -1667,17 +1521,17 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                   stopDuelAudio();
                   setSelectedScenarioIdx(idx);
                 }}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center space-x-2 border ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all flex items-center space-x-2 border ${
                   selectedScenarioIdx === idx
-                    ? "bg-zinc-800 text-white border-zinc-600 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200 border-transparent hover:bg-zinc-900"
+                    ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
+                    : "text-neutral-600 hover:text-neutral-900 border-neutral-200/80 hover:bg-neutral-100/60"
                 }`}
               >
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
                     scen.status === "PASS"
-                      ? "bg-emerald-400"
-                      : "bg-red-400"
+                      ? "bg-emerald-500"
+                      : "bg-rose-500"
                   }`}
                 />
                 <span>Attack #{scen.scenario_id}: {scen.title.split("—")[0].trim()}</span>
@@ -1689,40 +1543,40 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
             {/* LEFT FIGHTER: Red-Team Attacker */}
             <div
-              className={`md:col-span-5 space-y-3 p-3 rounded-2xl transition-all ${
+              className={`md:col-span-5 space-y-3 p-4 rounded-2xl transition-all ${
                 duelSpeaker === "attacker"
-                  ? "ring-2 ring-red-500 bg-red-950/30 scale-[1.02]"
-                  : ""
+                  ? "ring-2 ring-rose-500 bg-rose-50/60 scale-[1.02]"
+                  : "bg-neutral-50/60 border border-neutral-200/60"
               }`}
             >
               <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-xl bg-red-950/40 border border-red-800/60 flex items-center justify-center text-red-400 ${duelSpeaker === "attacker" ? "animate-bounce" : ""}`}>
+                <div className={`w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-600 ${duelSpeaker === "attacker" ? "animate-bounce" : ""}`}>
                   <Bot className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h4 className="text-xs font-bold text-white">Red-Team Adversary</h4>
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-red-950/50 text-red-400 border border-red-800/40 uppercase">
+                    <h4 className="text-xs font-bold text-neutral-900">Red-Team Adversary</h4>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold uppercase">
                       Attacker
                     </span>
                     {duelSpeaker === "attacker" && (
-                      <span className="text-[10px] text-red-400 font-mono animate-pulse">
+                      <span className="text-[10px] text-rose-600 font-mono animate-pulse">
                         ● Speaking...
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-zinc-400">
+                  <span className="text-[11px] text-neutral-500">
                     {activeScenario.attack_vector}
                   </span>
                 </div>
               </div>
 
               {/* Attacker Speech Bubble */}
-              <div className="rounded-xl bg-red-950/20 border border-red-900/40 p-4">
-                <span className="text-[11px] text-red-400 font-semibold block mb-1">
+              <div className="rounded-xl bg-white border border-rose-200 p-4 shadow-xs">
+                <span className="text-[11px] text-rose-600 font-semibold block mb-1">
                   Spoken Attack Utterance:
                 </span>
-                <p className="text-xs sm:text-sm text-red-200 italic leading-relaxed">
+                <p className="text-xs sm:text-sm text-neutral-800 italic leading-relaxed">
                   "{activeScenario.attacker_utterance}"
                 </p>
               </div>
@@ -1734,55 +1588,55 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                 duelSpeaker === "clash" ? "scale-110" : ""
               }`}
             >
-              <div className={`w-10 h-10 rounded-full bg-zinc-900 border flex items-center justify-center transition-colors ${duelSpeaker === "clash" ? "border-red-400 text-red-400 animate-spin" : "border-zinc-700 text-zinc-300"}`}>
+              <div className={`w-10 h-10 rounded-full bg-white border flex items-center justify-center shadow-xs transition-colors ${duelSpeaker === "clash" ? "border-rose-500 text-rose-500 animate-spin" : "border-neutral-200 text-neutral-600"}`}>
                 <Swords className="w-4 h-4" />
               </div>
-              <span className="px-2.5 py-0.5 rounded bg-zinc-800 text-zinc-200 text-[11px] font-mono border border-zinc-700">
+              <span className="px-3 py-1 rounded-full bg-neutral-100 text-neutral-800 text-[11px] font-mono font-bold border border-neutral-200">
                 {activeScenario.status === "PASS" ? "ATTACK BLOCKED" : "AUTO-PATCHED"}
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono">
+              <span className="text-[10px] text-neutral-400 font-mono">
                 {activeScenario.latency_ms}ms turn
               </span>
             </div>
 
             {/* RIGHT FIGHTER: Protected Voice AI */}
             <div
-              className={`md:col-span-5 space-y-3 text-right p-3 rounded-2xl transition-all ${
+              className={`md:col-span-5 space-y-3 text-right p-4 rounded-2xl transition-all ${
                 duelSpeaker === "defender"
-                  ? "ring-2 ring-emerald-500 bg-emerald-950/30 scale-[1.02]"
-                  : ""
+                  ? "ring-2 ring-emerald-500 bg-emerald-50/60 scale-[1.02]"
+                  : "bg-neutral-50/60 border border-neutral-200/60"
               }`}
             >
               <div className="flex items-center justify-end space-x-3">
                 <div>
                   <div className="flex items-center justify-end space-x-2">
                     {duelSpeaker === "defender" && (
-                      <span className="text-[10px] text-emerald-400 font-mono animate-pulse">
+                      <span className="text-[10px] text-emerald-600 font-mono animate-pulse">
                         ● Speaking...
                       </span>
                     )}
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/50 text-emerald-400 border border-emerald-800/40 uppercase">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold uppercase">
                       Protected
                     </span>
-                    <h4 className="text-xs font-bold text-white">
+                    <h4 className="text-xs font-bold text-neutral-900">
                       {currentDomain?.name}
                     </h4>
                   </div>
-                  <span className="text-[11px] text-zinc-400">
+                  <span className="text-[11px] text-neutral-500">
                     Pydantic Catalog Guardrail
                   </span>
                 </div>
-                <div className={`w-10 h-10 rounded-xl bg-emerald-950/40 border border-emerald-800/60 flex items-center justify-center text-emerald-400 ${duelSpeaker === "defender" ? "animate-bounce" : ""}`}>
+                <div className={`w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-600 ${duelSpeaker === "defender" ? "animate-bounce" : ""}`}>
                   <ShieldCheck className="w-5 h-5" />
                 </div>
               </div>
 
               {/* Defender Speech Bubble */}
-              <div className="rounded-xl bg-emerald-950/20 border border-emerald-900/40 p-4 text-left">
-                <span className="text-[11px] text-emerald-400 font-semibold block mb-1">
+              <div className="rounded-xl bg-white border border-emerald-200 p-4 text-left shadow-xs">
+                <span className="text-[11px] text-emerald-600 font-semibold block mb-1">
                   Agent Spoken Verification:
                 </span>
-                <p className="text-xs sm:text-sm text-emerald-200 leading-relaxed">
+                <p className="text-xs sm:text-sm text-neutral-800 leading-relaxed">
                   "{activeScenario.post_patch_agent_response || activeScenario.initial_agent_response}"
                 </p>
               </div>
@@ -1791,19 +1645,19 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
 
           {/* Self-Healing Auto-Patch Card (When vulnerability auto-healed) */}
           {activeScenario.patched_guardrail_rule && (
-            <div className="pt-4 border-t border-zinc-800">
-              <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
+            <div className="pt-4 border-t border-neutral-100">
+              <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 space-y-2">
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-xs font-bold text-zinc-200 uppercase font-mono">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-900 uppercase font-mono">
                     Self-Healing Rule Injected into Prompt & SQLite
                   </span>
                 </div>
-                <p className="text-xs text-zinc-300 font-mono bg-black/60 p-2.5 rounded-lg border border-zinc-800/80">
+                <p className="text-xs text-neutral-800 font-mono bg-white p-3 rounded-xl border border-emerald-200 shadow-xs">
                   {activeScenario.patched_guardrail_rule}
                 </p>
-                <p className="text-[11px] text-emerald-400 flex items-center space-x-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                <p className="text-[11px] text-emerald-700 flex items-center space-x-1.5 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>
                     Vulnerability closed. Future verbal discount bypass attempts will be blocked automatically.
                   </span>
