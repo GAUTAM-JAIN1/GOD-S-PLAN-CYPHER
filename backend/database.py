@@ -1,10 +1,18 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import AsyncGenerator, Optional
 from sqlalchemy import String, Text, DateTime, Integer, Float, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from backend.config import settings
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_ist_now() -> datetime:
+    return datetime.now(IST)
+
+def get_ist_time_str() -> str:
+    return datetime.now(IST).strftime("%H:%M:%S")
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -81,8 +89,8 @@ class LedgerEntryModel(Base):
     phonetic_score: Mapped[float] = mapped_column(Float, default=1.0)
     resolution_badge: Mapped[str] = mapped_column(String(64), default="LOCKED IN POS") # LOCKED IN POS, CALENDAR SYNCED, ASSISTED HOLD, RESOLVED
     details_json: Mapped[str] = mapped_column(Text, default="{}")
-    timestamp: Mapped[str] = mapped_column(String(32), default=lambda: datetime.now(timezone.utc).strftime("%H:%M:%S"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    timestamp: Mapped[str] = mapped_column(String(32), default=get_ist_time_str)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_ist_now)
 
 class InterceptHoldModel(Base):
     __tablename__ = "intercept_holds"
@@ -97,7 +105,7 @@ class InterceptHoldModel(Base):
     candidate_2_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     hold_reason: Mapped[str] = mapped_column(String(64), default="LOW_CONFIDENCE_AUDIO") # LOW_CONFIDENCE_AUDIO, HUMAN_TRANSFER_REQUEST
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE_HOLD") # ACTIVE_HOLD, RESOLVED_CANDIDATE_1, RESOLVED_CANDIDATE_2, TRANSFERRED, TIMED_OUT
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_ist_now)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 class AuditLogModel(Base):
@@ -107,7 +115,7 @@ class AuditLogModel(Base):
     domain_id: Mapped[str] = mapped_column(String(64), nullable=False)
     action_type: Mapped[str] = mapped_column(String(64), nullable=False)
     details_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_ist_now)
 
 class GauntletRunModel(Base):
     __tablename__ = "gauntlet_runs"

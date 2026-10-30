@@ -5,7 +5,7 @@ import sqlite3
 import logging
 from typing import Dict, Any, List, Optional
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger("voxera.brutal_shield")
 
@@ -82,7 +82,8 @@ class BrutalShieldManager:
         try:
             conn = sqlite3.connect(DB_PATH)
             entry_id = f"#SHIELD-{uuid.uuid4().hex[:8]}"
-            now = datetime.now(timezone.utc)
+            IST = timezone(timedelta(hours=5, minutes=30))
+            now = datetime.now(IST)
             now_iso = now.isoformat()
             time_str = now.strftime("%H:%M:%S")
             conn.execute("""

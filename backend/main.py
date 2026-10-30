@@ -12,6 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import pypdf
 import socket
 import asyncio
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 from backend.config import settings
 from backend.database import (
@@ -318,40 +321,52 @@ async def lifespan(app: FastAPI):
         if not ledger_res.scalars().first():
             initial_entries = [
                 LedgerEntryModel(
-                    id="#VF-408",
-                    session_id="#VF-408",
-                    domain_id="smilecare-dental",
-                    caller_phone="+91 98110 59281",
-                    caller_language="Hindi",
-                    verified_order_summary="Single Sitting RCT Slot",
-                    total_amount_inr=4500.0,
-                    phonetic_score=0.94,
-                    resolution_badge="CALENDAR SYNCED",
-                    timestamp="17:42:05"
-                ),
-                LedgerEntryModel(
-                    id="#VF-407",
-                    session_id="#VF-407",
+                    id="#VF-EE0",
+                    session_id="#VF-LIVE",
                     domain_id="brew-bite-cafe",
-                    caller_phone="+91 99580 12049",
+                    caller_phone="+91 98712 44321",
                     caller_language="Hinglish",
-                    verified_order_summary="1x Smoked Paneer Panini",
-                    total_amount_inr=320.0,
-                    phonetic_score=0.64,
-                    resolution_badge="ASSISTED HOLD",
-                    timestamp="17:35:50"
+                    verified_order_summary="2x Hazelnut Cold Brew and Smoked Paneer Ciabatta Panini • Gautam Jain (JP Noida)",
+                    total_amount_inr=560.0,
+                    phonetic_score=0.95,
+                    resolution_badge="LOCKED IN POS",
+                    timestamp="17:40:38"
                 ),
                 LedgerEntryModel(
-                    id="#VF-406",
-                    session_id="#VF-406",
-                    domain_id="apex-gurgaon-realty",
-                    caller_phone="+91 98188 33201",
-                    caller_language="English",
-                    verified_order_summary="3BHK Luxury Inquiry (Sec 65)",
-                    total_amount_inr=0.0,
-                    phonetic_score=0.98,
-                    resolution_badge="LEAD LOGGED",
-                    timestamp="17:28:10"
+                    id="#VF-585",
+                    session_id="#VF-LIVE",
+                    domain_id="brew-bite-cafe",
+                    caller_phone="+91 98712 44321",
+                    caller_language="Hinglish",
+                    verified_order_summary="1x Smoked Paneer Ciabatta Panini • Jatin Goyal (Sector 3)",
+                    total_amount_inr=320.0,
+                    phonetic_score=1.0,
+                    resolution_badge="LOCKED IN POS",
+                    timestamp="18:29:22"
+                ),
+                LedgerEntryModel(
+                    id="#VF-235",
+                    session_id="#VF-LIVE",
+                    domain_id="smilecare-dental",
+                    caller_phone="+91 98712 44321",
+                    caller_language="Hindi",
+                    verified_order_summary="1x General Specialist Consultation • Gautam Jain (Tomorrow appointment slot)",
+                    total_amount_inr=600.0,
+                    phonetic_score=0.95,
+                    resolution_badge="CALENDAR SYNCED",
+                    timestamp="14:45:09"
+                ),
+                LedgerEntryModel(
+                    id="#VF-277",
+                    session_id="#VF-LIVE",
+                    domain_id="dharma-dhaba",
+                    caller_phone="+91 99999 99999",
+                    caller_language="Hinglish",
+                    verified_order_summary="2x Dal Makhani and Butter Naan • Harsh Dhal (J.C. Bose University, Sector 3)",
+                    total_amount_inr=304.0,
+                    phonetic_score=1.0,
+                    resolution_badge="LOCKED IN POS",
+                    timestamp="17:04:58"
                 )
             ]
             for e in initial_entries:
@@ -1437,7 +1452,7 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
                 "totalInr": "₹0.00",
                 "phoneticGate": "0.00 (Spam Blocked)",
                 "status": "TERMINATED BY SHIELD",
-                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S")
+                "timestamp": datetime.now(IST).strftime("%H:%M:%S")
             }
         })
         return {
@@ -1480,7 +1495,7 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
                     "totalInr": "₹0.00",
                     "phoneticGate": "0.00 (Spam Blocked)",
                     "status": "CALL ENDED (OFF-TOPIC)",
-                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S")
+                    "timestamp": datetime.now(IST).strftime("%H:%M:%S")
                 }
             })
         return {

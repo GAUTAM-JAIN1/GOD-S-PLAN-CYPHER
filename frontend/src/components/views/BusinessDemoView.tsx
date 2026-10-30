@@ -57,6 +57,8 @@ import {
   extractBusinessName,
   sendTelegramTakeoverAlert,
   callVoiceLiveTurn,
+  fetchLedgerEntries,
+  getWsBase,
 } from "@/lib/api";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 
@@ -962,41 +964,85 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
   const [arenaPassedCount, setArenaPassedCount] = useState(2);
   const [autoHealedCount, setAutoHealedCount] = useState(1);
 
-  // Recent calls data
-  const [recentCalls, setRecentCalls] = useState([
-    {
-      id: "call-1",
-      phone: "+91 98765 43210",
-      status: "Order placed successfully",
-      timeAgo: "2 min ago",
-      type: "order",
-      amount: "₹480",
-    },
-    {
-      id: "call-2",
-      phone: "+91 98123 8876",
-      status: "Escalated to human (low confidence)",
-      timeAgo: "12 min ago",
-      type: "escalation",
-      amount: "—",
-    },
-    {
-      id: "call-3",
-      phone: "+91 99672 3311",
-      status: "Answered - General query",
-      timeAgo: "21 min ago",
-      type: "query",
-      amount: "—",
-    },
-    {
-      id: "call-4",
-      phone: "+91 98711 2345",
-      status: "No answer",
-      timeAgo: "37 min ago",
-      type: "missed",
-      amount: "—",
-    },
-  ]);
+  // Real Recent calls data from SQLite ledger
+  const [recentCalls, setRecentCalls] = useState<Array<{
+    id: string;
+    phone: string;
+    status: string;
+    timeAgo: string;
+    type: string;
+    amount: string;
+  }>>([]);
+
+  // Load real user tested calls from SQLite ledger
+  useEffect(() => {
+    async function loadRealData() {
+      try {
+        const entries = await fetchLedgerEntries();
+        if (entries && entries.length > 0) {
+          const mapped = entries.slice(0, 6).map((e) => ({
+            id: e.id || e.sessionId,
+            phone: e.callerPhone || "+91 98712 44321",
+            status: e.action,
+            timeAgo: e.timestamp,
+            type: e.status.includes("LOCKED") || e.status.includes("CALENDAR") ? "order" : e.status.includes("ASSISTED") ? "escalation" : "query",
+            amount: e.totalInr && e.totalInr !== "₹0.00" ? e.totalInr : "—",
+          }));
+          setRecentCalls(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load real ledger calls:", err);
+      }
+    }
+    loadRealData();
+  }, [currentDomain]);
+
+  // Real-time WebSocket listener for new live calls
+  useEffect(() => {
+    const wsUrl = `${getWsBase()}/ws/telemetry`;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "ACTION_COMMITTED" && data.entry) {
+            const e = data.entry;
+            const newCall = {
+              id: e.id || e.sessionId,
+              phone: e.callerPhone || "+91 98712 44321",
+              status: e.action,
+              timeAgo: e.timestamp,
+              type: e.status.includes("LOCKED") || e.status.includes("CALENDAR") ? "order" : e.status.includes("ASSISTED") ? "escalation" : "query",
+              amount: e.totalInr && e.totalInr !== "₹0.00" ? e.totalInr : "—",
+            };
+            setRecentCalls((prev) => [newCall, ...prev.slice(0, 5)]);
+          }
+        } catch (_) {}
+      };
+    } catch (_) {}
+    return () => {
+      if (ws) ws.close();
+    };
+  }, []);
+
+  // Load real latest gauntlet run from SQLite
+  useEffect(() => {
+    async function loadLatestArena() {
+      if (!currentDomain) return;
+      try {
+        const latest = await fetchLatestGauntlet(currentDomain.id);
+        if (latest && latest.has_run && latest.scenarios && latest.scenarios.length > 0) {
+          setScenarios(latest.scenarios);
+          setArenaPassedCount(latest.scenarios_passed || 0);
+          setAutoHealedCount(latest.auto_healed_count || 0);
+        }
+      } catch (err) {
+        console.warn("Could not load latest gauntlet run:", err);
+      }
+    }
+    loadLatestArena();
+  }, [currentDomain]);
 
   // Voice Speech Recognition for prompt input
   const togglePromptVoice = () => {
