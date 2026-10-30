@@ -183,6 +183,7 @@ async def resolve_hold_internal(
             )
             session.add(ledger_entry)
             ledger_entry_dict = {
+                "id": entry_id,
                 "sessionId": hold.session_id,
                 "callerPhone": ledger_entry.caller_phone,
                 "language": ledger_entry.caller_language,
@@ -214,6 +215,7 @@ async def resolve_hold_internal(
             )
             session.add(ledger_entry)
             ledger_entry_dict = {
+                "id": entry_id,
                 "sessionId": hold.session_id,
                 "callerPhone": ledger_entry.caller_phone,
                 "language": ledger_entry.caller_language,
@@ -1000,6 +1002,7 @@ async def commit_action_endpoint(req: CommitActionRequest, session: AsyncSession
     await ws_manager.broadcast({
         "type": "ACTION_COMMITTED",
         "entry": {
+            "id": entry_id,
             "sessionId": session_id,
             "callerPhone": ledger_entry.caller_phone,
             "language": ledger_entry.caller_language,
@@ -1117,7 +1120,12 @@ async def list_active_holds(session: AsyncSession = Depends(get_db_session)):
     holds = result.scalars().all()
 
     formatted = []
+    has_active_with_timer = False
     for h in holds:
+        rem_sec = whisper_sla_manager.get_remaining_sla_seconds(h.id)
+        if rem_sec > 0:
+            has_active_with_timer = True
+
         formatted.append({
             "id": h.id,
             "session_id": h.session_id,
@@ -1125,13 +1133,26 @@ async def list_active_holds(session: AsyncSession = Depends(get_db_session)):
             "spoken_entity": h.spoken_entity,
             "caller_utterance": h.caller_utterance,
             "phonetic_score": h.phonetic_score,
-            "candidate_1": json.loads(h.candidate_1_json),
-            "candidate_2": json.loads(h.candidate_2_json),
+            "candidate_1": json.loads(h.candidate_1_json or "{}"),
+            "candidate_2": json.loads(h.candidate_2_json or "{}"),
             "hold_reason": h.hold_reason,
             "status": h.status,
             "created_at": str(h.created_at),
-            "remaining_sla_sec": whisper_sla_manager.get_remaining_sla_seconds(h.id)
+            "remaining_sla_sec": rem_sec
         })
+
+    # If holds exist but all active SLA timers elapsed, schedule fresh 8.0s on the latest hold
+    if not has_active_with_timer and len(formatted) > 0:
+        top_hold = formatted[0]
+        whisper_sla_manager.schedule_sla_timeout(
+            hold_id=top_hold["id"],
+            timeout_sec=8.0,
+            session_id=top_hold["session_id"],
+            domain_id=top_hold["domain_id"],
+            caller_utterance=top_hold["caller_utterance"]
+        )
+        top_hold["remaining_sla_sec"] = 8.0
+
     return formatted
 
 class ResolveHoldRequest(BaseModel):
@@ -1483,9 +1504,85 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
 
     # 4. Multi-Item Double-Metaphone Phonetic Extraction & Mathematical Guardrail
     hint_system_message = None
-    if catalog_items:
+    committed_order_info = None
+
+    # Check if caller is confirming an order
+    is_confirming = any(p in utt_lower for p in [
+        "confirm kar do", "confirm kardo", "order confirm", "theek hai kar do",
+        "haan kar do", "ha kr do", "yes confirm", "confirm hai", "pack kar do",
+        "maine confirm kar diya", "confirm kr dia", "order place kar do", "haanji kar do",
+        "haanji pack", "haan lock", "lock kar do", "confirm", "haan confirm"
+    ])
+
+    if is_confirming:
+        # Look up most recent uncommitted pending order for this session or domain
+        pending_stmt = select(PendingVerificationModel).where(
+            PendingVerificationModel.domain_id == req.domain_id,
+            PendingVerificationModel.status == "VERIFIED_AWAITING_READBACK"
+        ).order_by(PendingVerificationModel.created_at.desc())
+        pending_res = await session.execute(pending_stmt)
+        pending = pending_res.scalars().first()
+
+        if pending:
+            pending.status = "COMMITTED"
+            entry_id = f"#VF-{uuid.uuid4().hex[:3].upper()}"
+            domain_badge = "LOCKED IN POS"
+            if "dental" in req.domain_id or "clinic" in req.domain_id:
+                domain_badge = "CALENDAR SYNCED"
+            elif "realty" in req.domain_id:
+                domain_badge = "LEAD LOGGED"
+
+            ledger_entry = LedgerEntryModel(
+                id=entry_id,
+                session_id=session_id,
+                domain_id=req.domain_id,
+                caller_phone="+91 98712 44321",
+                caller_language="Hinglish",
+                verified_order_summary=pending.canonical_name,
+                total_amount_inr=pending.total_price_inr,
+                phonetic_score=pending.phonetic_score,
+                resolution_badge=domain_badge,
+                details_json=json.dumps({
+                    "token": pending.token,
+                    "quantity": pending.quantity,
+                    "price": pending.total_price_inr
+                })
+            )
+            session.add(ledger_entry)
+            await session.commit()
+
+            committed_order_info = {
+                "id": entry_id,
+                "item": pending.canonical_name,
+                "total": pending.total_price_inr
+            }
+
+            # Broadcast ACTION_COMMITTED over WebSocket to update Verified Ledger & UI!
+            await ws_manager.broadcast({
+                "type": "ACTION_COMMITTED",
+                "entry": {
+                    "id": entry_id,
+                    "sessionId": session_id,
+                    "callerPhone": ledger_entry.caller_phone,
+                    "language": ledger_entry.caller_language,
+                    "action": ledger_entry.verified_order_summary,
+                    "totalInr": f"₹{ledger_entry.total_amount_inr:.2f}",
+                    "phoneticGate": f"{pending.phonetic_score:.2f} (Direct Pass)",
+                    "status": domain_badge,
+                    "timestamp": ledger_entry.timestamp
+                }
+            })
+
+            hint_system_message = (
+                f"[SYSTEM EVENT: ORDER LOCKED IN POS]: Customer confirmed their order for "
+                f"{pending.canonical_name} (Total ₹{int(pending.total_price_inr)}). "
+                f"Tell caller in polite Hindi: 'Shukriya! Aapka order confirm ho gaya hai aur POS ledger mein lock ho chuka hai. "
+                f"Aapka order jaldi ready ho jayega!'"
+            )
+
+    elif catalog_items:
         try:
-            from backend.services.phonetic_guardrail import match_multi_item_order
+            from backend.services.phonetic_guardrail import match_multi_item_order, evaluate_hardened_entity
             typed_catalog = []
             for it in catalog_items:
                 typed_catalog.append(CatalogItem(
@@ -1496,11 +1593,83 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
                     category=it.get("category", "General")
                 ))
 
+            # Ambiguous check: If caller utterance sounds like an item but has low confidence (< 0.85), trigger Whisper Hold!
+            eval_res = evaluate_hardened_entity(
+                domain_id=req.domain_id,
+                spoken_entity=req.user_utterance,
+                catalog=typed_catalog,
+                quantity=1
+            )
+            if eval_res.get("match_type") == "WHISPER_HOLD":
+                candidates = eval_res.get("candidates", [])
+                c1 = json.dumps(candidates[0]) if len(candidates) > 0 else "{}"
+                c2 = json.dumps(candidates[1]) if len(candidates) > 1 else "{}"
+                hold_reason = "AMBIGUOUS_TOP2_MATCH" if eval_res.get("is_ambiguous") else "LOW_CONFIDENCE_AUDIO"
+                hold_id = f"hold_{uuid.uuid4().hex[:8]}"
+
+                hold = InterceptHoldModel(
+                    id=hold_id,
+                    session_id=session_id,
+                    domain_id=req.domain_id,
+                    spoken_entity=req.user_utterance,
+                    caller_utterance=req.user_utterance,
+                    phonetic_score=eval_res["score"],
+                    candidate_1_json=c1,
+                    candidate_2_json=c2,
+                    hold_reason=hold_reason,
+                    status="ACTIVE_HOLD"
+                )
+                session.add(hold)
+                await session.commit()
+
+                expires_at_ms = whisper_sla_manager.schedule_sla_timeout(
+                    hold_id=hold_id,
+                    timeout_sec=8.0,
+                    session_id=session_id,
+                    domain_id=req.domain_id,
+                    caller_utterance=req.user_utterance
+                )
+
+                await ws_manager.broadcast({
+                    "type": "WHISPER_INTERCEPT",
+                    "hold_id": hold_id,
+                    "session_id": session_id,
+                    "domain_id": req.domain_id,
+                    "score": eval_res["score"],
+                    "candidates": candidates,
+                    "caller_utterance": req.user_utterance,
+                    "hold_reason": hold_reason,
+                    "expires_at_epoch_ms": expires_at_ms
+                })
+
+                hint_system_message = (
+                    f"[SYSTEM EVENT: WHISPER HOLD TRIGGERED]: Audio was ambiguous (score {eval_res['score']:.2f}). "
+                    f"A live Whisper Co-Pilot hold has been opened. Politely ask: "
+                    f"'Ek second hold kijiyega, audio thoda unclear tha, kya aap {candidates[0]['canonical_name'] if candidates else 'yeh item'} chahte hain?'"
+                )
+
             matched_orders = match_multi_item_order(req.user_utterance, typed_catalog)
-            if matched_orders:
+            if matched_orders and not hint_system_message:
                 total_calc = sum(int(m["price_inr"]) * int(m.get("quantity", 1)) for m in matched_orders)
-                item_details = [f"{m.get('quantity', 1)}x {m['canonical_name']} (Rs {int(m['price_inr']) * int(m.get('quantity', 1))})" for m in matched_orders]
                 items_names = " aur ".join(f"{m.get('quantity', 1)}x {m['canonical_name']}" for m in matched_orders)
+                
+                # Save PendingVerificationModel so when caller says "confirm", it locks into POS!
+                tok = f"tok_{uuid.uuid4().hex[:12]}"
+                pending_order = PendingVerificationModel(
+                    token=tok,
+                    domain_id=req.domain_id,
+                    session_id=session_id,
+                    canonical_name=items_names,
+                    quantity=1,
+                    unit_price_inr=float(total_calc),
+                    total_price_inr=float(total_calc),
+                    phonetic_score=0.96,
+                    caller_phone="+91 98712 44321",
+                    status="VERIFIED_AWAITING_READBACK"
+                )
+                session.add(pending_order)
+                await session.commit()
+
                 hint_system_message = (
                     f"[GUARDRAIL VERIFIED ORDER]: Customer ordered: {items_names}. "
                     f"Grand Total = ₹{total_calc}. State these exact canonical item names and exact total ₹{total_calc} "
@@ -1531,6 +1700,10 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
         "reply": reply,
         "call_terminated": False,
         "termination_reason": None,
+        "order_committed": bool(committed_order_info),
+        "committed_item": committed_order_info.get("item") if committed_order_info else None,
+        "committed_total": committed_order_info.get("total") if committed_order_info else None,
+        "ledger_id": committed_order_info.get("id") if committed_order_info else None,
         "llm_latency_ms": llm_latency,
         "turn_latency_ms": total_latency_ms,
         "total_latency_ms": total_latency_ms,

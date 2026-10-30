@@ -202,14 +202,14 @@ export const VerifiedLedgerPane: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredEntries.map((row) => {
+                filteredEntries.map((row, idx) => {
                   const isMobileApproved = row.status === "MOBILE APPROVED";
                   const isAssisted = row.status === "ASSISTED HOLD";
                   const isCallback = row.status === "PRIORITY CALLBACK";
 
                   return (
                     <tr
-                      key={row.sessionId + row.timestamp}
+                      key={row.id ? `${row.id}-${idx}` : `${row.sessionId}-${row.timestamp}-${idx}`}
                       onClick={() => setInspectedSession(row)}
                       className="hover:bg-[#16161c] transition-colors cursor-pointer group"
                     >

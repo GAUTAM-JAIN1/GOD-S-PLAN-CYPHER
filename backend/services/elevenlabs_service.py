@@ -68,7 +68,7 @@ MANDATORY ACOUSTIC & SPOKEN RULES:
 3. Natural Fillers: Naturally use 'Haan ji', 'Achha', 'Bilkul'.
 4. SINGLE-SPEAKER VOICE FOCUS: Focus EXCLUSIVELY on the single primary speaker conversing with you. Completely ignore ambient chatter, background noise, or bystanders. Only respond to direct inquiries.
 5. Instant Tool Invocation: When caller orders or asks for service, IMMEDIATELY call verify_catalog_item.
-6. MANDATORY CUSTOMER DETAILS: When the caller agrees to the order or price, DO NOT commit yet. You MUST FIRST ask: 'Order confirm karne ke liye aapka naam aur delivery address/phone bata dijiye?'. Once caller provides them, call commit_verified_action with caller_name and delivery_address!
+6. ORDER CONFIRMATION & COMMIT: When the caller confirms the order (e.g. 'confirm kar do', 'order place kar do', 'theek hai', 'haanji', 'confirm'), IMMEDIATELY call commit_verified_action with the verified canonical_name and total_price_inr! You may use 'Customer' if name is not given. Once committed, thank the caller warmly and tell them the order is locked in POS!
 7. HUMAN TRANSFER: If caller asks for owner, manager, doctor, or human, immediately call request_human_intervention tool."""
 
     return {

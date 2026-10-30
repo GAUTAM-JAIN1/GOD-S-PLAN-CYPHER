@@ -426,6 +426,9 @@ function LivePhoneCallModalInner({
             text: res.reply,
           },
         ]);
+        if (res.order_committed) {
+          setPendingOrder(null);
+        }
         speakText(res.reply);
         if (res.call_terminated) {
           setTimeout(() => {

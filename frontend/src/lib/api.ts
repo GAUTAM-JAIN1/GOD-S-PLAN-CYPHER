@@ -630,6 +630,10 @@ export async function callVoiceLiveTurn(data: {
   call_terminated?: boolean;
   termination_reason?: string;
   shield_status?: string;
+  order_committed?: boolean;
+  committed_item?: string;
+  committed_total?: number;
+  ledger_id?: string;
 }> {
   const res = await fetch(`${API_BASE}/api/voice/live-turn`, {
     method: "POST",
