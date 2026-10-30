@@ -1552,7 +1552,7 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
         "llm_latency_ms": llm_latency,
         "turn_latency_ms": total_latency_ms,
         "total_latency_ms": total_latency_ms,
-        "model": fast_model
+        "model": "llama-3.1-8b-instant"
     }
 
 # ----------------- ADVERSARIAL GAUNTLET & SELF-HEALING -----------------

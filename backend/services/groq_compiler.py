@@ -65,7 +65,7 @@ def get_groq_client() -> Optional[Groq]:
     return None
 
 _cached_groq_model: Optional[str] = None
-_cached_fast_groq_model: Optional[str] = None
+_cached_fast_groq_model: Optional[str] = "llama-3.1-8b-instant"
 
 def get_best_groq_model(client: Optional[Groq] = None) -> str:
     global _cached_groq_model

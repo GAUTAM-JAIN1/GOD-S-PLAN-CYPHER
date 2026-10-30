@@ -70,7 +70,7 @@ async def call_groq_agent_turn(
         t_llm0 = time.perf_counter()
         completion = await asyncio.to_thread(
             client.chat.completions.create,
-            model=fast_model,
+            model="qwen/qwen3.8-27b",
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens

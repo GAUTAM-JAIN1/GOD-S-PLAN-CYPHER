@@ -395,3 +395,38 @@ def evaluate_hardened_entity(
             "instruction": holding_msg,
         }
 
+def match_multi_item_order(utterance: str, catalog_items: List[CatalogItem]) -> List[Dict[str, Any]]:
+    """
+    Splits multi-item order utterances on conjunctions ('aur', 'and', ',', '+', 'plus')
+    and runs Double-Metaphone + fuzzy matching on each segment against real catalog items.
+    Returns list of matched item dictionaries with canonical_name, price_inr, quantity, and score.
+    """
+    segments = re.split(r'\b(?:aur|and|plus|,|\+)\b', utterance, flags=re.IGNORECASE)
+    matched_results: List[Dict[str, Any]] = []
+
+    for seg in segments:
+        s_clean = seg.strip()
+        if not s_clean or len(s_clean) < 3:
+            continue
+        clean_ent, qty, _ = strip_hinglish_stopwords_and_extract_qty(s_clean)
+        best_item = None
+        best_score = 0.0
+
+        for it in catalog_items:
+            score = calculate_entity_match_score(clean_ent, it)
+            if score > best_score:
+                best_score = score
+                best_item = it
+
+        if best_item and best_score >= 0.65:
+            matched_results.append({
+                "item": best_item,
+                "canonical_name": best_item.canonical_name,
+                "price_inr": best_item.price_inr,
+                "quantity": qty,
+                "score": best_score,
+                "total_price_inr": best_item.price_inr * qty
+            })
+
+    return matched_results
+
