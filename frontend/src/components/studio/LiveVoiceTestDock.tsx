@@ -290,8 +290,16 @@ function LiveVoiceInner({
       setSessionError(null);
 
       try {
-        // Step 1: Request microphone permission
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Step 1: Request microphone permission with hardware noise suppression
+        await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: { ideal: true },
+            noiseSuppression: { ideal: true },
+            autoGainControl: { ideal: true },
+            channelCount: { ideal: 1 },
+            sampleRate: { ideal: 16000 },
+          },
+        });
 
         // Step 2: Fetch real signed WebSocket URL from backend
         const signedData = await fetchConvaiSignedUrl(activeDomain.id);

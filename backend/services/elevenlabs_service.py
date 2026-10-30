@@ -148,7 +148,7 @@ MANDATORY ACOUSTIC & SPOKEN RULES:
                 "language": "hi" if "hi" in language_code.lower() else "en"
             },
             "tts": {
-                "model_id": "eleven_flash_v2_5" if "hi" in language_code.lower() else "eleven_turbo_v2",
+                "model_id": "eleven_flash_v2_5",
                 "voice_id": chosen_voice,
                 "stability": 0.40,
                 "similarity_boost": 0.80,
@@ -158,8 +158,8 @@ MANDATORY ACOUSTIC & SPOKEN RULES:
                 "optimize_streaming_latency": 4
             },
             "turn": {
-                "turn_timeout": 1.0,
-                "turn_eagerness": "eager"
+                "turn_timeout": 1.2,
+                "turn_eagerness": "normal"
             },
             "conversation": {
                 "max_duration_seconds": 600

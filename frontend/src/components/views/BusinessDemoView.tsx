@@ -288,7 +288,7 @@ function LivePhoneCallModalInner({
           noiseSuppression: { ideal: true },
           autoGainControl: { ideal: true },
           channelCount: { ideal: 1 },
-          sampleRate: { ideal: 48000 },
+          sampleRate: { ideal: 16000 },
         },
       });
       await conversation.startSession({
@@ -365,6 +365,11 @@ function LivePhoneCallModalInner({
           },
         ]);
         speakText(res.reply);
+        if (res.call_terminated) {
+          setTimeout(() => {
+            handleEndCall();
+          }, 2400);
+        }
         return;
       }
     } catch (err) {
@@ -944,7 +949,8 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
       const recognition = new SpeechRecognition();
       recognition.lang = "en-IN";
       recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.interimResults = true;
+      let vadSilenceTimer: any = null;
 
       recognition.onstart = () => {
         setIsPromptListening(true);

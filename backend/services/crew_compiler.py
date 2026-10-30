@@ -20,7 +20,8 @@ Your specialized mandate:
    Example: "arre bhai mere naye restaurant ka naam Royal Punjab Tadka hai hum dal makhani..." -> "Royal Punjab Tadka"
 2. CATALOG SYNTHESIS: From the owner's instructions and catalog details, generate catalog items with canonical names, exact INR prices, units/durations, and EXACTLY 6 realistic Indian/Hinglish phonetic aliases and common speech-to-text mispronunciations per item.
    Example aliases for "Dal Makhani": ["daal makhani", "dal makhni", "daal makhni", "makhani daal", "black lentil dal", "butter daal"]
-   Example aliases for "Butter Naan": ["butter nan", "makhan naan", "bataar naan", "garlic naan", "plain naan", "tandoori naan"]
+   Example aliases for "Butter Naan": ["butter nan", "makhan naan", "bataar naan", "makkhan naan", "buttar naan", "tandoori butter naan"]
+   CRITICAL: NEVER include distinct flavors/types (e.g. "garlic", "cheese", "plain") in phonetic aliases if not part of the canonical name!
 
 Output strictly valid JSON with this schema:
 {
@@ -119,6 +120,24 @@ Output strictly valid JSON:
   "first_message": "Punchy greeting under 10 words"
 }
 Output ONLY raw JSON."""
+
+DISTINCT_FLAVOR_TOKENS = {"garlic", "plain", "cheese", "chilli", "paneer", "stuffed", "laccha", "pudina", "keema", "onion"}
+
+def sanitize_phonetic_aliases(canonical_name: str, raw_aliases: List[str]) -> List[str]:
+    """Filters out aliases that introduce distinct flavors or menu items."""
+    c_lower = canonical_name.lower()
+    c_words = set(re.findall(r'\b[a-z]+\b', c_lower))
+    clean_aliases = []
+    for a in raw_aliases:
+        a_clean = a.strip().lower()
+        if not a_clean or a_clean == c_lower:
+            continue
+        words = set(re.findall(r'\b[a-z]+\b', a_clean))
+        diff_flavors = (words & DISTINCT_FLAVOR_TOKENS) - c_words
+        if diff_flavors:
+            continue
+        clean_aliases.append(a_clean)
+    return clean_aliases
 
 def clean_json_text(raw_text: str) -> str:
     cleaned = raw_text.strip()
@@ -233,14 +252,16 @@ async def execute_crew_pipeline(
                 clean_name = parsed1["clean_business_name"].strip()
             if parsed1.get("catalog_items"):
                 for idx, it in enumerate(parsed1["catalog_items"]):
-                    aliases = it.get("phonetic_aliases", [])
+                    raw_aliases = it.get("phonetic_aliases", [])
+                    c_name = it.get("canonical_name", f"Item {idx+1}")
+                    c_name_lower = c_name.lower()
+                    aliases = sanitize_phonetic_aliases(c_name, raw_aliases)
                     # Guarantee at least 6 phonetic aliases
-                    c_name_lower = it.get("canonical_name", "").lower()
                     while len(aliases) < 6:
                         aliases.append(f"{c_name_lower} variant {len(aliases) + 1}")
                     catalog_items.append(CatalogItem(
                         id=it.get("id", f"item-{idx+1}"),
-                        canonical_name=it.get("canonical_name", f"Item {idx+1}"),
+                        canonical_name=c_name,
                         category=it.get("category", "General"),
                         price_inr=float(it.get("price_inr", 150.0)),
                         unit_or_duration=it.get("unit_or_duration", "portion"),
@@ -273,7 +294,7 @@ async def execute_crew_pipeline(
                 category="Breads",
                 price_inr=60.0,
                 unit_or_duration="1 piece",
-                phonetic_aliases=["butter nan", "makhan naan", "bataar naan", "garlic naan", "plain naan", "tandoori naan"],
+                phonetic_aliases=["butter nan", "makhan naan", "bataar naan", "makkhan naan", "buttar naan", "tandoori butter naan"],
                 allowed_modifiers=["Crispy", "Extra Butter"]
             ))
         if not catalog_items:

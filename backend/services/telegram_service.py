@@ -22,17 +22,27 @@ class TelegramService:
         return bool(self.bot_token and self.bot_token.strip() and not self.bot_token.startswith("your_"))
 
     async def load_persisted_chat_id(self):
-        """Loads permanently saved paired_chat_id from SQLite system_settings table."""
+        """Loads permanently saved paired_chat_id from SQLite system_configs table."""
         try:
-            from backend.database import async_session_factory, SystemSettingModel
+            from backend.database import async_session_factory, SystemConfigModel, SystemSettingModel
             async with async_session_factory() as session:
                 res = await session.execute(
-                    select(SystemSettingModel).where(SystemSettingModel.key == "telegram_paired_chat_id")
+                    select(SystemConfigModel).where(SystemConfigModel.key == "telegram_paired_chat_id")
                 )
                 setting = res.scalar_one_or_none()
                 if setting and setting.value and setting.value.strip():
                     self.owner_chat_id = setting.value.strip()
-                    logger.info(f"Loaded persisted Telegram Paired Chat ID from SQLite: {self.owner_chat_id}")
+                    logger.info(f"Loaded persisted Telegram Paired Chat ID from SQLite system_configs: {self.owner_chat_id}")
+                    return self.owner_chat_id
+                
+                # Check legacy system_settings
+                res2 = await session.execute(
+                    select(SystemSettingModel).where(SystemSettingModel.key == "telegram_paired_chat_id")
+                )
+                setting2 = res2.scalar_one_or_none()
+                if setting2 and setting2.value and setting2.value.strip():
+                    self.owner_chat_id = setting2.value.strip()
+                    await self.persist_chat_id(self.owner_chat_id)
                     return self.owner_chat_id
         except Exception as e:
             logger.warning(f"Could not load telegram_paired_chat_id from SQLite: {e}")
@@ -44,24 +54,57 @@ class TelegramService:
         return self.owner_chat_id
 
     async def persist_chat_id(self, chat_id: str):
-        """Permanently saves paired_chat_id into SQLite system_settings table."""
+        """Permanently saves paired_chat_id into SQLite system_configs table."""
         self.owner_chat_id = str(chat_id).strip()
         try:
-            from backend.database import async_session_factory, SystemSettingModel
+            from backend.database import async_session_factory, SystemConfigModel, SystemSettingModel
             async with async_session_factory() as session:
+                # 1. Save to system_configs
                 res = await session.execute(
-                    select(SystemSettingModel).where(SystemSettingModel.key == "telegram_paired_chat_id")
+                    select(SystemConfigModel).where(SystemConfigModel.key == "telegram_paired_chat_id")
                 )
                 setting = res.scalar_one_or_none()
                 if setting:
                     setting.value = self.owner_chat_id
                 else:
-                    setting = SystemSettingModel(key="telegram_paired_chat_id", value=self.owner_chat_id)
-                    session.add(setting)
+                    session.add(SystemConfigModel(key="telegram_paired_chat_id", value=self.owner_chat_id))
+                
+                # 2. Mirror to system_settings
+                res2 = await session.execute(
+                    select(SystemSettingModel).where(SystemSettingModel.key == "telegram_paired_chat_id")
+                )
+                setting2 = res2.scalar_one_or_none()
+                if setting2:
+                    setting2.value = self.owner_chat_id
+                else:
+                    session.add(SystemSettingModel(key="telegram_paired_chat_id", value=self.owner_chat_id))
+
                 await session.commit()
-                logger.info(f"Persisted Telegram Chat ID {self.owner_chat_id} into SQLite system_settings.")
+                logger.info(f"Persisted Telegram Chat ID {self.owner_chat_id} into SQLite system_configs.")
         except Exception as e:
             logger.error(f"Failed to persist telegram_paired_chat_id into SQLite: {e}")
+
+    async def auto_discover_chat_id_from_telegram(self):
+        """Calls getUpdates once on startup to auto-discover latest chat.id if someone messaged offline."""
+        if not self.is_configured:
+            return
+        try:
+            url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates?limit=5"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
+                    updates = data.get("result", [])
+                    for up in reversed(updates):
+                        msg = up.get("message") or up.get("callback_query", {}).get("message")
+                        if msg and "chat" in msg:
+                            c_id = str(msg["chat"]["id"])
+                            if not self.owner_chat_id:
+                                await self.persist_chat_id(c_id)
+                                logger.info(f"Auto-discovered offline Telegram Chat ID: {c_id}")
+                            break
+        except Exception as e:
+            logger.warning(f"Telegram auto-discovery getUpdates check failed: {e}")
 
     def get_status(self) -> Dict[str, Any]:
         return {
@@ -184,9 +227,9 @@ class TelegramService:
             f"⚡ *Select an action to intervene or bridge audio:*"
         )
         inline_keyboard = [
-            [{"text": "📞 Connect / Takeover Now", "callback_data": f"resolve:{h_id}:APPROVE_TRANSFER"}],
-            [{"text": "⏳ Send Busy Callback", "callback_data": f"resolve:{h_id}:BUSY_CALLBACK"}],
-            [{"text": "✅ Mark Resolved", "callback_data": f"resolve:{h_id}:RESOLVED"}]
+            [{"text": "📞 Approve Call Transfer", "callback_data": f"resolve:{h_id}:APPROVE_TRANSFER"}],
+            [{"text": "⏳ Busy — AI Callback", "callback_data": f"resolve:{h_id}:BUSY_CALLBACK"}],
+            [{"text": "1️⃣ Confirm Candidate 1", "callback_data": f"resolve:{h_id}:CONFIRM_CANDIDATE_1"}]
         ]
         return await self.send_message(text, reply_markup={"inline_keyboard": inline_keyboard})
 

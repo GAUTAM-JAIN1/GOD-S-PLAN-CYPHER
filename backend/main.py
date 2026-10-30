@@ -1347,6 +1347,21 @@ async def send_takeover_alert_endpoint(req: TelegramTakeoverAlertRequest):
         "message": "Takeover alert pushed to owner's phone via Telegram." if success else "Telegram bot unconfigured or chat_id missing."
     }
 
+class PairTelegramChatRequest(BaseModel):
+    chat_id: str
+
+@app.post("/api/telegram/pair-chat-id")
+async def pair_telegram_chat_endpoint(req: PairTelegramChatRequest):
+    cid = req.chat_id.strip()
+    await telegram_service.persist_chat_id(cid)
+    sent = await telegram_service.send_test_alert(test_chat_id=cid)
+    return {
+        "success": True,
+        "paired_chat_id": cid,
+        "telegram_dispatched": sent,
+        "message": f"Telegram chat ID {cid} successfully paired & saved in SQLite system_configs."
+    }
+
 # ----------------- ULTRA-FAST LIVE CONVERSATIONAL TURN (<140ms LLM) -----------------
 class LiveTurnRequest(BaseModel):
     domain_id: str
@@ -1363,6 +1378,78 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
     profile = res.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="Domain not found")
+
+    session_id = req.session_id or f"sess_{int(time.time()*1000)}"
+
+    # 1. Pre-LLM BrutalShield: Flood & Prompt-Injection Kill Switch (0ms)
+    from backend.services.brutal_shield import brutal_shield
+    shield_res = brutal_shield.check_brutal_shield(
+        session_id=session_id,
+        utterance=req.user_utterance,
+        domain_id=req.domain_id
+    )
+    if shield_res.get("blocked"):
+        total_latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
+        await ws_manager.broadcast({
+            "type": "CALL_FORCE_TERMINATED",
+            "session_id": session_id,
+            "domain_id": req.domain_id,
+            "reason": shield_res.get("reason")
+        })
+        return {
+            "success": False,
+            "reply": shield_res.get("reply"),
+            "call_terminated": True,
+            "termination_reason": shield_res.get("reason"),
+            "shield_status": shield_res.get("status"),
+            "llm_latency_ms": 0,
+            "turn_latency_ms": total_latency_ms,
+            "total_latency_ms": total_latency_ms,
+            "model": "brutal_shield_0ms"
+        }
+
+    # 2. 2-Strike Off-Topic Call Termination
+    off_topic_res = brutal_shield.evaluate_off_topic_strike(
+        session_id=session_id,
+        utterance=req.user_utterance,
+        domain_name=profile.name,
+        domain_type=profile.domain_type,
+        domain_id=req.domain_id
+    )
+    if off_topic_res.get("is_off_topic"):
+        total_latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
+        if off_topic_res.get("call_terminated"):
+            await ws_manager.broadcast({
+                "type": "CALL_FORCE_TERMINATED",
+                "session_id": session_id,
+                "domain_id": req.domain_id,
+                "reason": "OFF_TOPIC_2_STRIKES"
+            })
+        return {
+            "success": True,
+            "reply": off_topic_res.get("reply"),
+            "call_terminated": off_topic_res.get("call_terminated"),
+            "termination_reason": off_topic_res.get("reason"),
+            "off_topic_strike": off_topic_res.get("strike"),
+            "llm_latency_ms": 0,
+            "turn_latency_ms": total_latency_ms,
+            "total_latency_ms": total_latency_ms,
+            "model": "off_topic_strike_ladder"
+        }
+
+    # 3. Escalation: Human Transfer Trigger Check
+    utt_lower = req.user_utterance.lower()
+    if any(phrase in utt_lower for phrase in ["manager se baat", "owner ko phone", "human transfer", "doctor se abhi", "doctor se baat", "supervisor se baat"]):
+        try:
+            await telegram_service.send_takeover_alert(
+                domain_name=profile.name,
+                caller_info="+91 98712 44321",
+                utterance=req.user_utterance,
+                order_summary="Customer requested live human escalation",
+                hold_id="live_call"
+            )
+        except Exception:
+            pass
 
     from backend.services.gauntlet_runner import call_groq_agent_turn
     from backend.services.groq_compiler import get_fast_groq_model
@@ -1448,8 +1535,8 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
         system_prompt=grounded_system_prompt,
         user_utterance=req.user_utterance,
         conversation_history=history,
-        max_tokens=100,
-        temperature=0.1
+        max_tokens=75,
+        temperature=0.25
     )
 
     if not reply:
@@ -1460,7 +1547,10 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
     return {
         "success": True,
         "reply": reply,
+        "call_terminated": False,
+        "termination_reason": None,
         "llm_latency_ms": llm_latency,
+        "turn_latency_ms": total_latency_ms,
         "total_latency_ms": total_latency_ms,
         "model": fast_model
     }
