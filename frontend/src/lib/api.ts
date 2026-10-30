@@ -479,7 +479,8 @@ export interface GauntletRunResult {
 
 export async function runGauntlet(
   domainId: string,
-  forceVulnerabilityDemo: boolean = true
+  forceVulnerabilityDemo: boolean = true,
+  selectedSuites?: string[]
 ): Promise<GauntletRunResult> {
   const res = await fetch(`${API_BASE}/api/gauntlet/run`, {
     method: "POST",
@@ -487,12 +488,67 @@ export async function runGauntlet(
     body: JSON.stringify({
       domain_id: domainId,
       force_vulnerability_demo: forceVulnerabilityDemo,
+      selected_suites: selectedSuites,
     }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || "Gauntlet run failed");
   }
+  return res.json();
+}
+
+export async function synthesizeDuelAudio(
+  domainId: string,
+  suiteId: string,
+  turns: Array<{ speaker: string; text: string; role?: string }>
+): Promise<{
+  success: boolean;
+  domain_id: string;
+  suite_id: string;
+  total_duration_sec: number;
+  turns_count: number;
+  turns_audio: Array<{
+    turn_index: number;
+    role: "ATTACKER" | "DEFENDER";
+    speaker: string;
+    text: string;
+    estimated_duration_sec: number;
+    voice: {
+      gender: string;
+      label: string;
+      pitch: number;
+      rate: number;
+      preferred_voices: string[];
+    };
+  }>;
+}> {
+  const res = await fetch(`${API_BASE}/api/gauntlet/synthesize-duel-audio`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain_id: domainId, suite_id: suiteId, turns }),
+  });
+  if (!res.ok) throw new Error("Audio synthesis failed");
+  return res.json();
+}
+
+export async function refineDomainPolicy(
+  domainId: string,
+  instruction: string,
+  suiteId?: string
+): Promise<{
+  success: boolean;
+  domain_id: string;
+  refined_rule: string;
+  updated_policies_count: number;
+  rerun_result?: GauntletRunResult | null;
+}> {
+  const res = await fetch(`${API_BASE}/api/domains/${encodeURIComponent(domainId)}/refine-policy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instruction, suite_id: suiteId }),
+  });
+  if (!res.ok) throw new Error("Policy refinement failed");
   return res.json();
 }
 
@@ -565,7 +621,16 @@ export async function callVoiceLiveTurn(data: {
   user_utterance: string;
   session_id?: string;
   conversation_history?: Array<{ role: string; content: string }>;
-}): Promise<{ success: boolean; reply: string; llm_latency_ms: number; total_latency_ms: number; model: string }> {
+}): Promise<{
+  success: boolean;
+  reply: string;
+  llm_latency_ms: number;
+  total_latency_ms: number;
+  model: string;
+  call_terminated?: boolean;
+  termination_reason?: string;
+  shield_status?: string;
+}> {
   const res = await fetch(`${API_BASE}/api/voice/live-turn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -757,23 +757,23 @@ async def get_convai_signed_url(domain_id: str, session: AsyncSession = Depends(
     try:
         signed_data = await get_signed_convai_url(agent_id)
         return signed_data
-    except HTTPException_ElevenLabs as e:
-        if e.status_code == 404:
-            logger.info(f"Agent {agent_id} not found on ElevenLabs. Re-creating...")
-            prov = await provision_elevenlabs_agent(
-                business_name=profile.name,
-                system_prompt=profile.system_prompt,
-                first_message=profile.first_message,
-                voice_id=profile.voice_id,
-                language_code=profile.language_code
-            )
-            if prov.success and prov.agent_id:
-                profile.elevenlabs_agent_id = prov.agent_id
-                await session.commit()
-                return await get_signed_convai_url(prov.agent_id)
-        raise HTTPException(status_code=e.status_code, detail=e.detail)
-    except Exception as ex:
-        raise HTTPException(status_code=500, detail=str(ex))
+    except Exception as e:
+        logger.info(f"Agent {agent_id} failed on ElevenLabs ({e}). Re-provisioning fresh agent on active API key...")
+        prov = await provision_elevenlabs_agent(
+            business_name=profile.name,
+            system_prompt=profile.system_prompt,
+            first_message=profile.first_message,
+            voice_id=profile.voice_id,
+            language_code=profile.language_code
+        )
+        if prov.success and prov.agent_id:
+            profile.elevenlabs_agent_id = prov.agent_id
+            await session.commit()
+            return await get_signed_convai_url(prov.agent_id)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Re-provisioning on ElevenLabs failed: {prov.message}"
+        )
 
 # ----------------- ELEVENLABS CONVAI VOICES -----------------
 @app.get("/api/convai/voices")
@@ -1481,51 +1481,33 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
 5. ORDER VERIFICATION: When customer orders items, calculate the exact total price from the catalog. Always state the canonical items, quantities, exact total price in clear Hindi words (e.g. 'Total teen sau rupaye'), and ask for confirmation ('Confirm kar du?').
 6. CONVERSATION CADENCE: Keep spoken responses under 18 words in natural, friendly Indian Hinglish/English. Crisp, direct, and sub-second immediate."""
 
-    # Heuristic Mathematical Guardrail:
-    # If the customer utterance contains an order with quantity or item mentions, pre-calculate the exact math
+    # 4. Multi-Item Double-Metaphone Phonetic Extraction & Mathematical Guardrail
     hint_system_message = None
     if catalog_items:
         try:
-            utt_lower = req.user_utterance.lower()
-            matched_orders = []
-            total_calc = 0
-            words = utt_lower.replace(",", " ").replace(".", " ").split()
-
-            # Word to quantity mapping in English and Hindi
-            def extract_qty(w_list, target_idx):
-                for offset in [-2, -1, 1, 2]:
-                    idx = target_idx + offset
-                    if 0 <= idx < len(w_list):
-                        w = w_list[idx]
-                        if w in ["1", "ek", "one"]: return 1
-                        elif w in ["2", "do", "two"]: return 2
-                        elif w in ["3", "teen", "three"]: return 3
-                        elif w in ["4", "char", "four"]: return 4
-                        elif w in ["5", "paanch", "five"]: return 5
-                        elif w.isdigit() and 1 <= int(w) <= 20: return int(w)
-                return 1
-
+            from backend.services.phonetic_guardrail import match_multi_item_order
+            typed_catalog = []
             for it in catalog_items:
-                c_name = it.get("canonical_name", "").lower()
-                aliases = [a.lower() for a in it.get("phonetic_aliases", [])]
-                for phrase in [c_name] + aliases:
-                    if phrase and phrase in utt_lower:
-                        # Find position of phrase
-                        p_words = phrase.split()
-                        try:
-                            w_idx = words.index(p_words[0]) if p_words[0] in words else 0
-                        except ValueError:
-                            w_idx = 0
-                        q = extract_qty(words, w_idx)
-                        p = int(it.get("price_inr", 0))
-                        matched_orders.append(f"{q}x {it.get('canonical_name')} (Rs {q * p})")
-                        total_calc += q * p
-                        break
+                typed_catalog.append(CatalogItem(
+                    id=str(it.get("id", uuid.uuid4().hex[:8])),
+                    canonical_name=it.get("canonical_name", ""),
+                    phonetic_aliases=it.get("phonetic_aliases", []),
+                    price_inr=float(it.get("price_inr", 0.0)),
+                    category=it.get("category", "General")
+                ))
 
+            matched_orders = match_multi_item_order(req.user_utterance, typed_catalog)
             if matched_orders:
-                hint_system_message = f"[GUARDRAIL VERIFIED ORDER]: {', '.join(matched_orders)}. Grand Total = Rs {total_calc}. Speak this exact total to caller and ask to confirm."
-        except Exception:
-            pass
+                total_calc = sum(int(m["price_inr"]) * int(m.get("quantity", 1)) for m in matched_orders)
+                item_details = [f"{m.get('quantity', 1)}x {m['canonical_name']} (Rs {int(m['price_inr']) * int(m.get('quantity', 1))})" for m in matched_orders]
+                items_names = " aur ".join(f"{m.get('quantity', 1)}x {m['canonical_name']}" for m in matched_orders)
+                hint_system_message = (
+                    f"[GUARDRAIL VERIFIED ORDER]: Customer ordered: {items_names}. "
+                    f"Grand Total = ₹{total_calc}. State these exact canonical item names and exact total ₹{total_calc} "
+                    f"to caller and ask for confirmation ('Confirm kar du?')."
+                )
+        except Exception as ex:
+            logger.warning(f"Error in phonetic multi-item order extraction: {ex}")
 
     history = list(req.conversation_history or [])
     if hint_system_message:
@@ -1591,6 +1573,127 @@ async def reset_vulnerability_endpoint(req: ResetVulnerabilityRequest):
         return res
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+# ----------------- MODULE E: INTERACTIVE DUEL AUDIO & POLICY REFINEMENT -----------------
+class SynthesizeDuelAudioRequest(BaseModel):
+    domain_id: str
+    suite_id: str
+    turns: List[Dict[str, Any]]
+
+@app.post("/api/gauntlet/synthesize-duel-audio")
+async def synthesize_duel_audio_endpoint(req: SynthesizeDuelAudioRequest):
+    """
+    Synthesizes dual-voice conversation audio for an adversarial duel.
+    Provides structured audio playback segments for:
+      - Attacker (Adversarial Male Caller): pitch 0.9, rate 1.05, voice hints
+      - Defender (Voxera AI Receptionist): pitch 1.1, rate 1.0, voice hints
+    """
+    turns_audio = []
+    total_est_duration = 0.0
+
+    for idx, turn in enumerate(req.turns):
+        speaker = str(turn.get("speaker", "")).lower()
+        text = str(turn.get("text", "")).strip()
+        role = "ATTACKER" if ("attacker" in speaker or "caller" in speaker) else "DEFENDER"
+
+        words = len(text.split())
+        est_duration = max(1.5, round(words * 0.38, 2))
+        total_est_duration += est_duration
+
+        if role == "ATTACKER":
+            voice_config = {
+                "gender": "male",
+                "label": "Adversarial Male Caller",
+                "pitch": 0.9,
+                "rate": 1.05,
+                "preferred_voices": ["Google हिन्दी Male", "Microsoft Ravi", "en-IN-Wavenet-B"]
+            }
+        else:
+            voice_config = {
+                "gender": "female",
+                "label": "Voxera AI Receptionist",
+                "pitch": 1.1,
+                "rate": 1.0,
+                "preferred_voices": ["Google हिन्दी Female", "Microsoft Swara", "hi-IN-Wavenet-A"]
+            }
+
+        turns_audio.append({
+            "turn_index": idx,
+            "role": role,
+            "speaker": turn.get("speaker"),
+            "text": text,
+            "estimated_duration_sec": est_duration,
+            "voice": voice_config
+        })
+
+    return {
+        "success": True,
+        "domain_id": req.domain_id,
+        "suite_id": req.suite_id,
+        "total_duration_sec": round(total_est_duration, 2),
+        "turns_count": len(turns_audio),
+        "turns_audio": turns_audio,
+        "player_mode": "DUAL_VOICE_STREAM"
+    }
+
+class RefinePolicyRequest(BaseModel):
+    instruction: str
+    suite_id: Optional[str] = None
+
+@app.post("/api/domains/{domain_id}/refine-policy")
+async def refine_policy_endpoint(
+    domain_id: str,
+    req: RefinePolicyRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Appends an interactive owner directive/policy directly into SQLite domain_profiles,
+    updates the system prompt, and optionally re-runs the specific anti-attacker duel.
+    """
+    stmt = select(DomainProfileModel).where(DomainProfileModel.id == domain_id)
+    res = await session.execute(stmt)
+    profile = res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Domain profile not found")
+
+    new_rule = f"[OWNER DIRECTIVE]: {req.instruction.strip()}"
+
+    current_policies = []
+    if profile.policies_json:
+        try:
+            current_policies = json.loads(profile.policies_json)
+        except Exception:
+            current_policies = []
+
+    current_policies.append(new_rule)
+    profile.policies_json = json.dumps(current_policies)
+
+    if new_rule not in profile.system_prompt:
+        profile.system_prompt = f"{profile.system_prompt}\n\n{new_rule}"
+
+    await session.commit()
+    logger.info(f"Refined policy for {domain_id}: {new_rule}. Total policies: {len(current_policies)}")
+
+    rerun_result = None
+    if req.suite_id:
+        try:
+            from backend.services.crew_gauntlet import crew_gauntlet_service
+            gauntlet_res = await crew_gauntlet_service.run_crew_gauntlet(
+                domain_id=domain_id,
+                selected_suites=[req.suite_id],
+                broadcast_func=ws_manager.broadcast
+            )
+            rerun_result = gauntlet_res.model_dump()
+        except Exception as ex:
+            logger.warning(f"Auto re-run of suite {req.suite_id} failed: {ex}")
+
+    return {
+        "success": True,
+        "domain_id": domain_id,
+        "refined_rule": new_rule,
+        "updated_policies_count": len(current_policies),
+        "rerun_result": rerun_result
+    }
 
 # ----------------- MODULE 7: 3-PHASE AGENT TEST SUITE -----------------
 class RunModule7Request(BaseModel):

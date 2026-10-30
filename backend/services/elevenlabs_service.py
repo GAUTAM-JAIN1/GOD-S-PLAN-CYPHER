@@ -148,7 +148,7 @@ MANDATORY ACOUSTIC & SPOKEN RULES:
                 "language": "hi" if "hi" in language_code.lower() else "en"
             },
             "tts": {
-                "model_id": "eleven_flash_v2_5",
+                "model_id": "eleven_flash_v2_5" if "hi" in language_code.lower() else "eleven_flash_v2",
                 "voice_id": chosen_voice,
                 "stability": 0.40,
                 "similarity_boost": 0.80,

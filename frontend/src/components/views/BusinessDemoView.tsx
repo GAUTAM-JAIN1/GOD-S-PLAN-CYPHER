@@ -265,6 +265,66 @@ function LivePhoneCallModalInner({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const localCallRecRef = useRef<any>(null);
+  const localCallActiveRef = useRef<boolean>(false);
+
+  const stopLocalCallSTT = () => {
+    localCallActiveRef.current = false;
+    if (localCallRecRef.current) {
+      try {
+        localCallRecRef.current.stop();
+      } catch (_) {}
+      localCallRecRef.current = null;
+    }
+  };
+
+  const startLocalCallSTT = () => {
+    if (
+      typeof window !== "undefined" &&
+      ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)
+    ) {
+      stopLocalCallSTT();
+      const SpeechRec =
+        (window as any).SpeechRecognition ||
+        (window as any).webkitSpeechRecognition;
+      const rec = new SpeechRec();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = "hi-IN";
+
+      rec.onresult = (event: any) => {
+        const lastResult = event.results[event.results.length - 1];
+        if (lastResult && lastResult[0]) {
+          const userText = lastResult[0].transcript.trim();
+          if (userText) {
+            setMessages((prev) => [...prev, { sender: "caller", text: userText }]);
+            handleProcessUtterance(userText);
+          }
+        }
+      };
+
+      rec.onerror = (e: any) => {
+        console.warn("Local STT warning:", e);
+      };
+
+      rec.onend = () => {
+        if (localCallActiveRef.current) {
+          try {
+            rec.start();
+          } catch (_) {}
+        }
+      };
+
+      try {
+        localCallActiveRef.current = true;
+        rec.start();
+        localCallRecRef.current = rec;
+      } catch (err) {
+        console.warn("Could not start local voice recognition:", err);
+      }
+    }
+  };
+
   const speakText = (text: string) => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
@@ -304,10 +364,12 @@ function LivePhoneCallModalInner({
         `Namaste! Welcome to ${activeDomain.name}. How may I help you today?`;
       setMessages([{ sender: "agent", text: welcomeMsg }]);
       speakText(welcomeMsg);
+      startLocalCallSTT();
     }
   };
 
   const handleEndCall = async () => {
+    stopLocalCallSTT();
     try {
       if (conversation.status === "connected") {
         await conversation.endSession();
