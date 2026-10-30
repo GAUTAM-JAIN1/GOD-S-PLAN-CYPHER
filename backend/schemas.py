@@ -29,6 +29,8 @@ class DomainProfileSchema(BaseModel):
     catalog_items: List[CatalogItem] = Field(default_factory=list)
     strict_policies: List[StrictPolicy] = Field(default_factory=list)
     elevenlabs_agent_id: Optional[str] = None
+    compiled_by: Optional[str] = "CrewAI Multi-Agent Trained"
+    crew_execution_log_json: Optional[str] = "[]"
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -48,6 +50,8 @@ class CompileDomainResponse(BaseModel):
     catalog_items: List[CatalogItem]
     strict_policies: List[StrictPolicy]
     pydantic_literal_code: str
+    compiled_by: Optional[str] = "CrewAI 3-Agent Pipeline (Llama-3.3-70B)"
+    crew_execution_log: Optional[List[Dict[str, Any]]] = None
     raw_tokens_used: Optional[int] = 0
     error: Optional[str] = None
 

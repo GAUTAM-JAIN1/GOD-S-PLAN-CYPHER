@@ -27,3 +27,4 @@ try:
             print(f"[FAIL] ElevenLabs API returned HTTP {resp.status_code}: {resp.text}")
 except Exception as e:
     print(f"Error testing ElevenLabs key: {e}")
+

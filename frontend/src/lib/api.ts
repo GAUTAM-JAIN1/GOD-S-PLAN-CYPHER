@@ -53,6 +53,8 @@ export interface DomainProfile {
   catalog_items: CatalogItem[];
   strict_policies: StrictPolicy[];
   elevenlabs_agent_id?: string | null;
+  compiled_by?: string;
+  crew_execution_log_json?: string;
   created_at?: string;
   updated_at?: string;
 }

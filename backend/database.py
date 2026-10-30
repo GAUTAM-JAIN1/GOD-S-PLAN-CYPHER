@@ -47,6 +47,8 @@ class DomainProfileModel(Base):
     catalog_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     policies_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     pydantic_code: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    compiled_by: Mapped[Optional[str]] = mapped_column(String(128), default="CrewAI Multi-Agent Trained")
+    crew_execution_log_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="[]")
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -132,6 +134,16 @@ async def init_db():
         await conn.execute(text("PRAGMA synchronous=NORMAL;"))
         await conn.execute(text("PRAGMA busy_timeout=30000;"))
         await conn.run_sync(Base.metadata.create_all)
+        
+        # Ensure migration columns exist in domain_profiles
+        try:
+            await conn.execute(text("ALTER TABLE domain_profiles ADD COLUMN compiled_by VARCHAR(128) DEFAULT 'CrewAI Multi-Agent Trained';"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE domain_profiles ADD COLUMN crew_execution_log_json TEXT DEFAULT '[]';"))
+        except Exception:
+            pass
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:

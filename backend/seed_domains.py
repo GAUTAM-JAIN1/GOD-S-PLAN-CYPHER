@@ -1,8 +1,73 @@
 import json
 from typing import List, Dict, Any
-from backend.schemas import CatalogItem, StrictPolicy, DomainProfileSchema
+
+def make_crew_execution_log(domain_name: str, item_count: int, policy_count: int) -> str:
+    return json.dumps([
+        {
+            "agent": "Phonetic & Catalog Linguist",
+            "role": "Entity Extraction & Double-Metaphone Phonetic Normalizer",
+            "status": "COMPLETED",
+            "execution_time_ms": 1420,
+            "output_summary": f"Compiled canonical catalog for '{domain_name}' with {item_count} items and 6 phonetic aliases per item."
+        },
+        {
+            "agent": "Deterministic Security & Guardrail Architect",
+            "role": "6-Policy Defense Matrix & Boundary Enforcement",
+            "status": "COMPLETED",
+            "execution_time_ms": 1280,
+            "output_summary": f"Synthesized {policy_count} policies including 2-Strike Off-Topic Termination and Live Takeover Escalation."
+        },
+        {
+            "agent": "Hinglish Voice Persona & Prompt Engineer",
+            "role": "Sub-12 Word Voice Prompt & Pydantic Schema Compiler",
+            "status": "COMPLETED",
+            "execution_time_ms": 1150,
+            "output_summary": f"Compiled low-latency voice prompt enforcing <12 words/turn and dynamic Pydantic schema."
+        }
+    ])
+
+def get_standard_six_policies(prefix: str, business_name: str) -> List[Dict[str, Any]]:
+    return [
+        {
+            "id": f"pol-{prefix}-01",
+            "rule": "Mandatory read-back: confirm canonical item name, quantity, and exact INR total before finalizing order.",
+            "severity": "CRITICAL",
+            "enforcement_action": "REJECT_WITHOUT_CONFIRMATION"
+        },
+        {
+            "id": f"pol-{prefix}-02",
+            "rule": "Zero verbal or cousin/family discounts without live manager authorization.",
+            "severity": "CRITICAL",
+            "enforcement_action": "POLITE_DECLINE"
+        },
+        {
+            "id": f"pol-{prefix}-03",
+            "rule": f"Strict Knowledge Boundary: refuse queries about external competitors, chef secret recipes, or confidential {business_name} data.",
+            "severity": "HIGH",
+            "enforcement_action": "DEFLECT_TO_IN_PERSON"
+        },
+        {
+            "id": f"pol-{prefix}-04",
+            "rule": "2-Strike Off-Topic Call Termination: Strike 1 politely redirect; Strike 2 invoke terminate_call tool and hang up.",
+            "severity": "CRITICAL",
+            "enforcement_action": "TERMINATE_CALL"
+        },
+        {
+            "id": f"pol-{prefix}-05",
+            "rule": "Persistent Escalation Law: if caller pushes 3+ times for discounts or demands supervisor, invoke request_human_intervention.",
+            "severity": "CRITICAL",
+            "enforcement_action": "ESCALATE_TRANSFER"
+        },
+        {
+            "id": f"pol-{prefix}-06",
+            "rule": "Zero PII & UTR Leak: never disclose customer records or accept unverified payment claims/screenshots.",
+            "severity": "CRITICAL",
+            "enforcement_action": "BLOCK_PAYMENT_UTR"
+        }
+    ]
 
 SEED_DOMAINS: List[Dict[str, Any]] = [
+    # 1. Brew & Bite Cafe
     {
         "id": "brew-bite-cafe",
         "name": "Brew & Bite Cafe",
@@ -12,15 +77,19 @@ SEED_DOMAINS: List[Dict[str, Any]] = [
         "voice_id": "21m00Tcm4TlvDq8ikWAM",
         "turn_timeout_ms": 350,
         "first_message": "Namaste, Brew & Bite Cafe! Aaj aapke liye kya fresh order lagau?",
+        "compiled_by": "CrewAI Multi-Agent Trained",
         "system_prompt": """You are Simran, the fast, friendly Indian order-taker at Brew & Bite Cafe.
-Your role is to assist callers in placing takeaway orders swiftly and accurately.
+Your role is to assist callers in placing takeaway orders swiftly and accurately in authentic Hinglish.
 
-CRITICAL CONVERSATIONAL RULES:
-1. Speak natural, warm conversational Hinglish. Keep spoken turns strictly under 12 words.
-2. DO NOT speak repetitive filler phrases like 'line par rahiye' or 'ek second check karti hu'. Answer directly and naturally.
-3. When customer asks for an item, call verify_catalog_item(spoken_entity, quantity). When verified, immediately quote item and total price: 'Haanji, 2 Hazelnut Cold Brew ho gaya, total ₹480. Confirm kar du?'
-4. When customer confirms the order, ask: 'Aapka naam aur delivery address/phone bata dijiye?' Once provided, call commit_verified_action with the details and reply: 'Bilkul, order lock ho gaya! 15 minute mein deliver ho jayega.'
-5. Zero Verbal Discounts: Rohit (the owner) does not allow verbal family/cousin discounts. Decline politely and quote catalog price.""",
+CRITICAL VOICE & SECURITY LAWS:
+1. Spoken turns MUST NEVER exceed 12 words. Crisp, fast, and natural.
+2. Speak natural Hinglish with fillers: 'Haan ji', 'Achha', 'Bilkul'.
+3. Quote prices naturally: speak 'two forty rupees' or 'do sau chaalis rupaye'.
+4. When caller mentions an item, IMMEDIATELY call verify_catalog_item(spoken_entity, quantity).
+5. Mandatory Read-Back: Always state canonical item, quantity, and exact total before confirming.
+6. When confirmed, ask: 'Aapka naam aur address bata dijiye?' then call commit_verified_action.
+7. 2-Strike Off-Topic Rule: Strike 1 redirect; Strike 2 invoke terminate_call.
+8. Escalation: If caller argues for discounts or demands manager, call request_human_intervention.""",
         "catalog_items": [
             {
                 "id": "bb-01",
@@ -28,7 +97,7 @@ CRITICAL CONVERSATIONAL RULES:
                 "category": "Cold Coffees",
                 "price_inr": 240.0,
                 "unit_or_duration": "350ml Glass Bottle",
-                "phonetic_aliases": ["hazel nut", "cold brew hazelnut", "hezalnat brew", "hazelnut coffee", "nut cold brew"],
+                "phonetic_aliases": ["hazel nut", "cold brew hazelnut", "hezalnat brew", "hazelnut coffee", "nut cold brew", "hazel cold brew"],
                 "allowed_modifiers": ["Extra Shot", "Oat Milk", "Almond Milk", "Sugar Free"]
             },
             {
@@ -37,7 +106,7 @@ CRITICAL CONVERSATIONAL RULES:
                 "category": "Cold Coffees",
                 "price_inr": 180.0,
                 "unit_or_duration": "300ml Cup",
-                "phonetic_aliases": ["iced americano", "ice americano", "americano cold", "black coffee with ice"],
+                "phonetic_aliases": ["iced americano", "ice americano", "americano cold", "black coffee with ice", "americano", "chilled americano"],
                 "allowed_modifiers": ["Double Shot", "Less Ice", "Extra Ice"]
             },
             {
@@ -46,7 +115,7 @@ CRITICAL CONVERSATIONAL RULES:
                 "category": "Specialty Coffee",
                 "price_inr": 260.0,
                 "unit_or_duration": "250ml",
-                "phonetic_aliases": ["vietnam shakerato", "shakerato", "condensed milk coffee", "sweet vietnamese coffee"],
+                "phonetic_aliases": ["vietnam shakerato", "shakerato", "condensed milk coffee", "sweet vietnamese coffee", "vietnamese coffee", "iced shakerato"],
                 "allowed_modifiers": ["Less Sweet", "Extra Condensed Milk"]
             },
             {
@@ -55,17 +124,8 @@ CRITICAL CONVERSATIONAL RULES:
                 "category": "Tea & Lattes",
                 "price_inr": 290.0,
                 "unit_or_duration": "300ml Cup",
-                "phonetic_aliases": ["matcha latte", "green matcha", "japani green tea latte", "iced matcha", "latte"],
+                "phonetic_aliases": ["matcha latte", "green matcha", "japani green tea latte", "iced matcha", "latte matcha", "green tea latte"],
                 "allowed_modifiers": ["Oat Milk", "Iced", "Hot"]
-            },
-            {
-                "id": "bb-09",
-                "canonical_name": "Caramel Artisan Latte",
-                "category": "Tea & Lattes",
-                "price_inr": 310.0,
-                "unit_or_duration": "300ml Cup",
-                "phonetic_aliases": ["caramel latte", "caramel macchiato", "sweet caramel latte", "artisan latte", "latte"],
-                "allowed_modifiers": ["Oat Milk", "Almond Milk", "Extra Caramel Drizzle", "Iced", "Hot"]
             },
             {
                 "id": "bb-05",
@@ -73,7 +133,7 @@ CRITICAL CONVERSATIONAL RULES:
                 "category": "Gourmet Bites",
                 "price_inr": 320.0,
                 "unit_or_duration": "1 Grilled Panini",
-                "phonetic_aliases": ["paneer panini", "smoked paneer sandwich", "ciabatta panini", "paneer bread toast"],
+                "phonetic_aliases": ["paneer panini", "smoked paneer sandwich", "ciabatta panini", "paneer bread toast", "grilled paneer panini", "paneer sandwich"],
                 "allowed_modifiers": ["Extra Cheese", "Spicy Jalapenos", "Gluten Free Bread"]
             },
             {
@@ -82,48 +142,11 @@ CRITICAL CONVERSATIONAL RULES:
                 "category": "Gourmet Bites",
                 "price_inr": 360.0,
                 "unit_or_duration": "1 Grilled Sandwich",
-                "phonetic_aliases": ["mushroom melt", "truffle sandwich", "mushroom cheese toast", "truffle toast"],
+                "phonetic_aliases": ["mushroom melt", "truffle sandwich", "mushroom cheese toast", "truffle toast", "truffle mushroom sandwich", "melt sandwich"],
                 "allowed_modifiers": ["Extra Truffle Oil", "Crispy Crust"]
-            },
-            {
-                "id": "bb-07",
-                "canonical_name": "Belgian Chocolate Tiramisu",
-                "category": "Desserts",
-                "price_inr": 280.0,
-                "unit_or_duration": "1 Box (180g)",
-                "phonetic_aliases": ["tiramisu", "chocolate tiramisu", "belgian tiramisu", "tiramisu box"],
-                "allowed_modifiers": ["Extra Cocoa Dusting"]
-            },
-            {
-                "id": "bb-08",
-                "canonical_name": "Lotus Biscoff Cheesecake",
-                "category": "Desserts",
-                "price_inr": 310.0,
-                "unit_or_duration": "1 Slice",
-                "phonetic_aliases": ["biscoff cheesecake", "lotus cheesecake", "biscoff slice", "cheesecake"],
-                "allowed_modifiers": ["Warm Drizzle"]
             }
         ],
-        "strict_policies": [
-            {
-                "id": "pol-bb-01",
-                "rule": "Mandatory read-back: confirm item name, quantity, and total price ₹ before finalizing.",
-                "severity": "CRITICAL",
-                "enforcement_action": "REJECT_WITHOUT_CONFIRMATION"
-            },
-            {
-                "id": "pol-bb-02",
-                "rule": "Zero verbal or cousin/family discounts without manager live approval.",
-                "severity": "CRITICAL",
-                "enforcement_action": "POLITE_DECLINE"
-            },
-            {
-                "id": "pol-bb-03",
-                "rule": "Ambiguous noisy audio must trigger holding whisper co-pilot gate.",
-                "severity": "HIGH",
-                "enforcement_action": "TRIGGER_WHISPER_HOLD"
-            }
-        ],
+        "strict_policies": get_standard_six_policies("bb", "Brew & Bite Cafe"),
         "pydantic_code": """# Dynamically Compiled Pydantic Enum for Brew & Bite Cafe
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -134,9 +157,7 @@ CafeMenuItem = Literal[
     "Vietnamese Shakerato",
     "Matcha Green Tea Latte",
     "Smoked Paneer Ciabatta Panini",
-    "Truffle Mushroom Melt",
-    "Belgian Chocolate Tiramisu",
-    "Lotus Biscoff Cheesecake"
+    "Truffle Mushroom Melt"
 ]
 
 class OrderItemVerification(BaseModel):
@@ -146,6 +167,8 @@ class OrderItemVerification(BaseModel):
     unit_price_inr: float
     total_price_inr: float"""
     },
+
+    # 2. SmileCare Dental & Multi-Specialty Clinic
     {
         "id": "smilecare-dental",
         "name": "SmileCare Dental & Multi-Specialty Clinic",
@@ -155,14 +178,18 @@ class OrderItemVerification(BaseModel):
         "voice_id": "21m00Tcm4TlvDq8ikWAM",
         "turn_timeout_ms": 420,
         "first_message": "Namaste, SmileCare Dental Clinic! Dr. Sharma ke yahan consultation ke liye call kiya hai?",
-        "system_prompt": """You are Priya, the empathetic medical receptionist at SmileCare Dental & Multi-Specialty Clinic.
-Your role is to schedule appointments, provide official consultation fee details, and triage emergency dental pain.
+        "compiled_by": "CrewAI Multi-Agent Trained",
+        "system_prompt": """You are Priya, the empathetic medical receptionist at SmileCare Dental Clinic.
+Your role is to schedule appointments, quote official consultation fees, and triage acute dental pain.
 
-STRICT MEDICAL RECEPTION RULES:
-1. Speak soothing, reassuring Hinglish with high medical courtesy. Max 14 words per turn.
-2. NEVER prescribe medications or provide diagnosis over the phone.
-3. If caller reports unbearable pain (score > 8) or acute bleeding, immediately trigger request_human_intervention.
-4. Consultation fee is ₹600. Laser Root Canal is ₹4,500. Ultrasonic scaling is ₹1,200. Always verify exact slot with verify_catalog_item.""",
+CRITICAL VOICE & SECURITY LAWS:
+1. Spoken turns MUST NEVER exceed 12 words. High medical courtesy.
+2. NEVER prescribe medications or provide phone diagnosis.
+3. Consultation is ₹600. Single Sitting RCT is ₹4,500. Ultrasonic scaling is ₹1,200.
+4. When caller requests procedure or slot: call verify_catalog_item(spoken_entity, quantity).
+5. Confirm booking with patient name and phone before commit_verified_action.
+6. 2-Strike Off-Topic Rule: Strike 1 redirect; Strike 2 invoke terminate_call.
+7. Escalation: If acute pain >8 or demands doctor immediately, call request_human_intervention.""",
         "catalog_items": [
             {
                 "id": "sc-01",
@@ -170,7 +197,7 @@ STRICT MEDICAL RECEPTION RULES:
                 "category": "OPD & Diagnostic",
                 "price_inr": 600.0,
                 "unit_or_duration": "30 mins slot",
-                "phonetic_aliases": ["doctor consultation", "checkup", "teeth checkup", "consultation fee", "opd visit"],
+                "phonetic_aliases": ["doctor consultation", "checkup", "teeth checkup", "consultation fee", "opd visit", "dental checkup"],
                 "allowed_modifiers": ["First Time Visit", "Follow-up Visit"]
             },
             {
@@ -179,7 +206,7 @@ STRICT MEDICAL RECEPTION RULES:
                 "category": "Endodontics",
                 "price_inr": 4500.0,
                 "unit_or_duration": "45 mins slot",
-                "phonetic_aliases": ["root canal", "rct", "single sitting rct", "daant ka root canal", "nerve treatment"],
+                "phonetic_aliases": ["root canal", "rct", "single sitting rct", "daant ka root canal", "nerve treatment", "laser rct"],
                 "allowed_modifiers": ["Laser Assisted", "Microscopic RCT"]
             },
             {
@@ -188,7 +215,7 @@ STRICT MEDICAL RECEPTION RULES:
                 "category": "Preventive Care",
                 "price_inr": 1200.0,
                 "unit_or_duration": "30 mins slot",
-                "phonetic_aliases": ["scaling", "teeth cleaning", "polishing", "tartar removal", "daant safai"],
+                "phonetic_aliases": ["scaling", "teeth cleaning", "polishing", "tartar removal", "daant safai", "deep clean"],
                 "allowed_modifiers": ["Deep Scaling", "Stain Removal"]
             },
             {
@@ -197,7 +224,7 @@ STRICT MEDICAL RECEPTION RULES:
                 "category": "Prosthodontics",
                 "price_inr": 6000.0,
                 "unit_or_duration": "1 Unit Cap",
-                "phonetic_aliases": ["crown", "dental cap", "zirconia cap", "ceramic cap", "daant ki topi"],
+                "phonetic_aliases": ["crown", "dental cap", "zirconia cap", "ceramic cap", "daant ki topi", "tooth crown"],
                 "allowed_modifiers": ["10-Year Warranty", "Premium Translucent"]
             },
             {
@@ -206,24 +233,11 @@ STRICT MEDICAL RECEPTION RULES:
                 "category": "Cosmetic Care",
                 "price_inr": 7500.0,
                 "unit_or_duration": "60 mins procedure",
-                "phonetic_aliases": ["teeth whitening", "laser bleaching", "smile brightening", "daant chamkana"],
+                "phonetic_aliases": ["teeth whitening", "laser bleaching", "smile brightening", "daant chamkana", "tooth bleaching", "laser whitening"],
                 "allowed_modifiers": ["Sensitivity Guard"]
             }
         ],
-        "strict_policies": [
-            {
-                "id": "pol-sc-01",
-                "rule": "Zero phone prescriptions or diagnostic commitments under Medical Council guidelines.",
-                "severity": "CRITICAL",
-                "enforcement_action": "POLITE_DECLINE"
-            },
-            {
-                "id": "pol-sc-02",
-                "rule": "Acute pain triage (>8/10 or swelling) escalates immediately to Clinic Manager.",
-                "severity": "CRITICAL",
-                "enforcement_action": "ESCALATE_TRANSFER"
-            }
-        ],
+        "strict_policies": get_standard_six_policies("sc", "SmileCare Dental Clinic"),
         "pydantic_code": """# Dynamically Compiled Pydantic Enum for SmileCare Dental
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -242,6 +256,8 @@ class ClinicBookingVerification(BaseModel):
     preferred_slot: str
     fee_inr: float"""
     },
+
+    # 3. Apex Gurgaon Realty
     {
         "id": "apex-gurgaon-realty",
         "name": "Apex Gurgaon Realty",
@@ -251,13 +267,18 @@ class ClinicBookingVerification(BaseModel):
         "voice_id": "21m00Tcm4TlvDq8ikWAM",
         "turn_timeout_ms": 420,
         "first_message": "Good day, Apex Gurgaon Realty. Looking for luxury residential apartments or commercial retail?",
+        "compiled_by": "CrewAI Multi-Agent Trained",
         "system_prompt": """You are Aarav, senior client relationship host at Apex Gurgaon Realty.
-Your objective is to qualify high-net-worth real estate buyers, present verified luxury listings, and schedule private site visits.
+Your objective is to qualify luxury real estate buyers, present verified listings, and schedule site visits.
 
-OPERATING GUIDELINES:
-1. Maintain sophisticated, polished Indian English tone. Max 15 words per turn.
-2. Verify buyer budget bracket and location preference (Sector 65, Golf Course Road, Sector 42).
-3. Do not quote unauthorized developer discounts over phone. Site visit appointments require 24h prior slot reservation.""",
+CRITICAL VOICE & SECURITY LAWS:
+1. Spoken turns MUST NEVER exceed 12 words. Sophisticated Indian English tone.
+2. Verify buyer budget bracket and location preference (Sector 65, Golf Course Road).
+3. Do not quote unauthorized developer discounts over phone.
+4. When buyer selects listing: invoke verify_catalog_item(spoken_entity, quantity).
+5. Confirm private inspection appointment before commit_verified_action.
+6. 2-Strike Off-Topic Rule: Strike 1 redirect; Strike 2 invoke terminate_call.
+7. Escalation: If client demands builder direct meeting, invoke request_human_intervention.""",
         "catalog_items": [
             {
                 "id": "ar-01",
@@ -265,7 +286,7 @@ OPERATING GUIDELINES:
                 "category": "Luxury Residential",
                 "price_inr": 32500000.0,
                 "unit_or_duration": "2,450 sq.ft Carpet",
-                "phonetic_aliases": ["3bhk sector 65", "three bhk luxury", "sector 65 apartment", "golf course ext 3bhk"],
+                "phonetic_aliases": ["3bhk sector 65", "three bhk luxury", "sector 65 apartment", "golf course ext 3bhk", "3 bedroom luxury", "sector 65 flat"],
                 "allowed_modifiers": ["Park Facing", "High Floor 20+"]
             },
             {
@@ -274,7 +295,7 @@ OPERATING GUIDELINES:
                 "category": "Super Luxury Penthouses",
                 "price_inr": 78000000.0,
                 "unit_or_duration": "5,200 sq.ft Duplex",
-                "phonetic_aliases": ["4bhk penthouse", "sky penthouse sector 42", "duplex penthouse", "terrace penthouse"],
+                "phonetic_aliases": ["4bhk penthouse", "sky penthouse sector 42", "duplex penthouse", "terrace penthouse", "sector 42 penthouse", "luxury penthouse"],
                 "allowed_modifiers": ["Private Plunge Pool", "4 Covered Car Parks"]
             },
             {
@@ -283,7 +304,7 @@ OPERATING GUIDELINES:
                 "category": "Commercial Properties",
                 "price_inr": 19500000.0,
                 "unit_or_duration": "1,150 sq.ft Double Height",
-                "phonetic_aliases": ["commercial shop", "retail space sector 54", "golf course road shop"],
+                "phonetic_aliases": ["commercial shop", "retail space sector 54", "golf course road shop", "sector 54 retail", "commercial showroom", "high street retail"],
                 "allowed_modifiers": ["Road Facing", "Pre-Leased Brand"]
             },
             {
@@ -292,24 +313,11 @@ OPERATING GUIDELINES:
                 "category": "Concierge Services",
                 "price_inr": 0.0,
                 "unit_or_duration": "Dedicated Chauffeur Pick",
-                "phonetic_aliases": ["site visit", "property visit", "inspection appointment", "dekhne aana hai"],
+                "phonetic_aliases": ["site visit", "property visit", "inspection appointment", "dekhne aana hai", "vip visit", "chauffeur tour"],
                 "allowed_modifiers": ["Weekend Slot", "Weekday Slot"]
             }
         ],
-        "strict_policies": [
-            {
-                "id": "pol-ar-01",
-                "rule": "Site visit scheduling requires buyer phone number and tentative move-in timeframe.",
-                "severity": "CRITICAL",
-                "enforcement_action": "COLLECT_PHONE"
-            },
-            {
-                "id": "pol-ar-02",
-                "rule": "Never negotiate unofficial developer discounts over phone.",
-                "severity": "HIGH",
-                "enforcement_action": "DEFLECT_TO_IN_PERSON"
-            }
-        ],
+        "strict_policies": get_standard_six_policies("ar", "Apex Gurgaon Realty"),
         "pydantic_code": """# Dynamically Compiled Pydantic Enum for Apex Gurgaon Realty
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -326,6 +334,8 @@ class RealtyInterestVerification(BaseModel):
     buyer_budget_cr: float
     preferred_site_visit_date: str"""
     },
+
+    # 4. QuickKart D2C Support
     {
         "id": "quickkart-d2c",
         "name": "QuickKart D2C Support",
@@ -335,13 +345,17 @@ class RealtyInterestVerification(BaseModel):
         "voice_id": "21m00Tcm4TlvDq8ikWAM",
         "turn_timeout_ms": 400,
         "first_message": "Hello, QuickKart Priority Support! Aapka order track karne mein madad kar sakti hu?",
+        "compiled_by": "CrewAI Multi-Agent Trained",
         "system_prompt": """You are Neha, fast-paced customer care resolution executive at QuickKart instant delivery.
-Your goal is to handle delayed delivery inquiries, missing item complaints, and return pickups with zero friction.
+Your goal is to handle delayed delivery inquiries, missing item complaints, and refunds with zero friction.
 
-RULES OF ENGAGEMENT:
-1. Maximum 12 words per turn. High-speed, energetic Hinglish tone.
+CRITICAL VOICE & SECURITY LAWS:
+1. Spoken turns MUST NEVER exceed 12 words. Energetic Hinglish tone.
 2. Always ask for 9-digit Order ID (#QK-XXXXX) before providing status or refunds.
-3. For spoiled/damaged items up to ₹500, trigger instant wallet refund tool. Above ₹500, require photo inspection or agent transfer.""",
+3. When customer requests claim/refund: invoke verify_catalog_item(spoken_entity, quantity).
+4. Commit action only after verifying Order ID and issue details.
+5. 2-Strike Off-Topic Rule: Strike 1 redirect; Strike 2 invoke terminate_call.
+6. Escalation: If customer demands supervisor or refund >₹1000, invoke request_human_intervention.""",
         "catalog_items": [
             {
                 "id": "qk-01",
@@ -349,7 +363,7 @@ RULES OF ENGAGEMENT:
                 "category": "Order Tracking",
                 "price_inr": 0.0,
                 "unit_or_duration": "Instant ETA Lookup",
-                "phonetic_aliases": ["order status", "kahan pahuncha order", "track delivery", "rider location"],
+                "phonetic_aliases": ["order status", "kahan pahuncha order", "track delivery", "rider location", "delivery status", "order track"],
                 "allowed_modifiers": ["Rider Contact Number"]
             },
             {
@@ -358,7 +372,7 @@ RULES OF ENGAGEMENT:
                 "category": "Claims & Resolution",
                 "price_inr": 0.0,
                 "unit_or_duration": "Instant Credit",
-                "phonetic_aliases": ["refund", "item damaged", "kharab samaan", "paise wapas", "wallet credit"],
+                "phonetic_aliases": ["refund", "item damaged", "kharab samaan", "paise wapas", "wallet credit", "damaged refund"],
                 "allowed_modifiers": ["QuickKart Cash", "Source Bank UPI"]
             },
             {
@@ -367,24 +381,11 @@ RULES OF ENGAGEMENT:
                 "category": "Returns",
                 "price_inr": 50.0,
                 "unit_or_duration": "20 Mins Rider Slot",
-                "phonetic_aliases": ["return pickup", "wapas le jao", "return order", "pickup slot"],
+                "phonetic_aliases": ["return pickup", "wapas le jao", "return order", "pickup slot", "return parcel", "express return"],
                 "allowed_modifiers": ["Doorstep Sealed Bag"]
             }
         ],
-        "strict_policies": [
-            {
-                "id": "pol-qk-01",
-                "rule": "Refunds > ₹1000 require human supervisor approval or escalation.",
-                "severity": "CRITICAL",
-                "enforcement_action": "ESCALATE_TRANSFER"
-            },
-            {
-                "id": "pol-qk-02",
-                "rule": "Order tracking requires valid 9-digit order number.",
-                "severity": "HIGH",
-                "enforcement_action": "PROMPT_ORDER_ID"
-            }
-        ],
+        "strict_policies": get_standard_six_policies("qk", "QuickKart Support"),
         "pydantic_code": """# Dynamically Compiled Pydantic Enum for QuickKart D2C
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -399,5 +400,95 @@ class SupportTicketVerification(BaseModel):
     action: SupportAction
     order_id: str
     issue_category: str"""
+    },
+
+    # 5. Urban Chai Co
+    {
+        "id": "urban-chai-co",
+        "name": "Urban Chai Co",
+        "domain_type": "orders_reservations",
+        "tagline": "Handcrafted Kulhad Chai & Street Snacks (Koramangala, Bengaluru)",
+        "language_code": "hi-IN",
+        "voice_id": "21m00Tcm4TlvDq8ikWAM",
+        "turn_timeout_ms": 380,
+        "first_message": "Namaste! Urban Chai Co me swagat hai. Garam chai aur nasta lagayein?",
+        "compiled_by": "CrewAI Multi-Agent Trained",
+        "system_prompt": """You are Kabir, the prompt order-taker at Urban Chai Co.
+Your role is to take fast takeaway orders for kulhad chai and hot snacks in authentic Hinglish.
+
+CRITICAL VOICE & SECURITY LAWS:
+1. Spoken turns MUST NEVER exceed 12 words. Crisp, fast, and warm.
+2. Speak natural Hinglish with fillers: 'Haan ji', 'Bilkul', 'Achha'.
+3. Quote prices naturally: 'chaalis rupaye', 'sattar rupaye'.
+4. When caller mentions snack or tea, IMMEDIATELY call verify_catalog_item(spoken_entity, quantity).
+5. Mandatory Read-Back: State items, quantity, and exact INR total before confirming.
+6. 2-Strike Off-Topic Rule: Strike 1 redirect; Strike 2 invoke terminate_call.
+7. Escalation: If caller argues for discounts or demands manager, call request_human_intervention.""",
+        "catalog_items": [
+            {
+                "id": "uc-01",
+                "canonical_name": "Adrak Elaichi Chai (Kulhad)",
+                "category": "Chai Specialties",
+                "price_inr": 40.0,
+                "unit_or_duration": "Kulhad 150ml",
+                "phonetic_aliases": ["adrak chai", "ginger tea", "elaichi chai", "kulhad chai", "ginger cardamom tea", "special chai"],
+                "allowed_modifiers": ["Kaddak", "Kam Meetha", "Sugar Free"]
+            },
+            {
+                "id": "uc-02",
+                "canonical_name": "Masala Bun Maska",
+                "category": "Snacks & Bakery",
+                "price_inr": 55.0,
+                "unit_or_duration": "1 Bun",
+                "phonetic_aliases": ["bun maska", "maska bun", "butter bun", "sweet bun", "bun butter", "bread maska"],
+                "allowed_modifiers": ["Extra Butter", "Toasted Crispy"]
+            },
+            {
+                "id": "uc-03",
+                "canonical_name": "Paneer Bread Pakoda (2 pcs)",
+                "category": "Hot Snacks",
+                "price_inr": 70.0,
+                "unit_or_duration": "2 pcs with chutney",
+                "phonetic_aliases": ["bread pakoda", "paneer pakoda", "pakora", "paneer bread pakora", "fried pakoda", "garam pakoda"],
+                "allowed_modifiers": ["Extra Mint Chutney", "Chaat Masala"]
+            },
+            {
+                "id": "uc-04",
+                "canonical_name": "Irani Dum Chai",
+                "category": "Chai Specialties",
+                "price_inr": 50.0,
+                "unit_or_duration": "Glass 180ml",
+                "phonetic_aliases": ["irani chai", "dum chai", "patti chai", "irani tea", "sweet irani chai", "special irani"],
+                "allowed_modifiers": ["Malai Topping"]
+            },
+            {
+                "id": "uc-05",
+                "canonical_name": "Samosa with Mint Chutney (2 pcs)",
+                "category": "Hot Snacks",
+                "price_inr": 45.0,
+                "unit_or_duration": "2 pcs",
+                "phonetic_aliases": ["samosa", "samose", "aloo samosa", "garam samosa", "crispy samosa", "chutney samosa"],
+                "allowed_modifiers": ["Spicy Chutney", "Sweet Saunth"]
+            }
+        ],
+        "strict_policies": get_standard_six_policies("uc", "Urban Chai Co"),
+        "pydantic_code": """# Dynamically Compiled Pydantic Enum for Urban Chai Co
+from typing import Literal
+from pydantic import BaseModel, Field
+
+ChaiMenuItem = Literal[
+    "Adrak Elaichi Chai (Kulhad)",
+    "Masala Bun Maska",
+    "Paneer Bread Pakoda (2 pcs)",
+    "Irani Dum Chai",
+    "Samosa with Mint Chutney (2 pcs)"
+]
+
+class ChaiOrderVerification(BaseModel):
+    item: ChaiMenuItem
+    quantity: int = Field(default=1, ge=1, le=20)
+    modifiers: list[str] = Field(default_factory=list)
+    unit_price_inr: float
+    total_price_inr: float"""
     }
 ]

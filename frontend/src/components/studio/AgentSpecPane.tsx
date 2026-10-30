@@ -282,7 +282,7 @@ export const AgentSpecPane: React.FC<AgentSpecPaneProps> = ({
   return (
     <div className="w-[340px] min-w-[340px] h-full bg-[#101013] border-r border-[#1f1f24] flex flex-col justify-between select-none">
       {/* Top Section: Domain Pills & Configuration */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3.5 pb-28 space-y-3.5">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3.5 pb-48 space-y-3.5">
         {/* Pane Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -303,20 +303,46 @@ export const AgentSpecPane: React.FC<AgentSpecPaneProps> = ({
             {domains.map((dom) => {
               const isSelected = activeDomain?.id === dom.id;
               return (
-                <button
+                <div
                   key={dom.id}
                   onClick={() => onSelectDomain(dom)}
-                  className={`text-left px-2.5 py-1.5 rounded-[4px] border transition-all text-xs ${
+                  className={`group relative text-left px-2.5 py-1.5 rounded-[4px] border transition-all text-xs cursor-pointer ${
                     isSelected
                       ? "bg-[#16161a] border-[#2c2c35] text-[#f4f4f6] shadow-sm font-medium"
                       : "bg-[#09090b] border-[#1f1f24] text-[#9494a0] hover:border-[#2c2c35] hover:text-[#f4f4f6]"
                   }`}
                 >
-                  <div className="truncate font-medium">{dom.name}</div>
-                  <div className="font-mono text-[9px] text-[#5b5b66] truncate uppercase">
-                    {dom.domain_type.replace("_", " ")}
+                  <div className="flex items-center justify-between">
+                    <div className="truncate font-medium flex items-center space-x-1">
+                      <span>{dom.name}</span>
+                    </div>
+                    {!["brew-bite-cafe", "smilecare-dental", "apex-gurgaon-realty", "quickkart-d2c", "quickkart-d2c-support", "urban-chai-co"].includes(dom.id) && (
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (confirm(`Delete custom agent "${dom.name}"?`)) {
+                            const { deleteDomain } = await import("@/lib/api");
+                            await deleteDomain(dom.id);
+                            window.location.reload();
+                          }
+                        }}
+                        className="text-[#9494a0] hover:text-[#ef4444] text-xs font-bold px-1"
+                        title="Delete custom agent"
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
-                </button>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <span className="font-mono text-[9px] text-[#5b5b66] truncate uppercase">
+                      {dom.domain_type.replace("_", " ")}
+                    </span>
+                    <span className="font-mono text-[8px] px-1 py-0.2 rounded bg-[#1f1f24] text-[#9494a0]">
+                      CrewAI 0ms
+                    </span>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -491,6 +517,7 @@ export const AgentSpecPane: React.FC<AgentSpecPaneProps> = ({
           <button
             onClick={handleCompile}
             disabled={isCompiling}
+            title="New Agent Creation: ~45s Deep CrewAI Compile"
             className="flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-[#e4e4e7] hover:bg-[#ffffff] text-[#09090b] rounded-[4px] text-xs font-semibold transition-all shadow-sm disabled:opacity-50"
           >
             {isCompiling ? (

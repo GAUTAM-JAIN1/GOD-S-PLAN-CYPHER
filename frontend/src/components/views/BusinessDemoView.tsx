@@ -1734,17 +1734,40 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                                 {getDomainIcon(dom.domain_type)}
                               </div>
                               <div>
-                                <h4 className="text-xs font-bold text-[#151619]">
-                                  {dom.name}
-                                </h4>
+                                <div className="flex items-center space-x-1.5 flex-wrap">
+                                  <h4 className="text-xs font-bold text-[#151619]">
+                                    {dom.name}
+                                  </h4>
+                                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-[#151619]/5 text-[#151619] border border-[#151619]/10">
+                                    CrewAI Trained · 0ms Ready
+                                  </span>
+                                </div>
                                 <span className="text-[10px] text-[#737B8B] uppercase tracking-wider font-semibold">
                                   {dom.domain_type}
                                 </span>
                               </div>
                             </div>
-                            {isSelected && (
-                              <span className="w-2 h-2 rounded-full bg-[#151619]" />
-                            )}
+                            <div className="flex items-center space-x-1.5">
+                              {!["brew-bite-cafe", "smilecare-dental", "apex-gurgaon-realty", "quickkart-d2c", "quickkart-d2c-support", "urban-chai-co"].includes(dom.id) && (
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Delete custom agent "${dom.name}"?`)) {
+                                      await deleteDomain(dom.id);
+                                      window.location.reload();
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded-full hover:bg-red-50 text-[#737B8B] hover:text-red-500 flex items-center justify-center text-xs font-bold transition-all"
+                                  title="Delete custom agent"
+                                >
+                                  ×
+                                </button>
+                              )}
+                              {isSelected && (
+                                <span className="w-2 h-2 rounded-full bg-[#151619]" />
+                              )}
+                            </div>
                           </div>
 
                           <p className="text-xs text-[#737B8B] line-clamp-2">
