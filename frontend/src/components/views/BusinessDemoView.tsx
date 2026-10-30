@@ -935,16 +935,19 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
   // Live Call Widget Simulation State
   const [isLiveWidgetPaused, setIsLiveWidgetPaused] = useState(false);
   const [isLiveWidgetMuted, setIsLiveWidgetMuted] = useState(false);
-  const [callTimerSeconds, setCallTimerSeconds] = useState(24);
+  const [callTimerSeconds, setCallTimerSeconds] = useState(0);
 
-  // Ticking timer for Live Agent Activity card
+  // Ticking timer for Live Agent Activity card (only when a live call is active)
   useEffect(() => {
-    if (isLiveWidgetPaused) return;
+    if (!isCallOpen || isLiveWidgetPaused) {
+      if (!isCallOpen) setCallTimerSeconds(0);
+      return;
+    }
     const interval = setInterval(() => {
       setCallTimerSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isLiveWidgetPaused]);
+  }, [isCallOpen, isLiveWidgetPaused]);
 
   const formatTimer = (totalSec: number) => {
     const mins = Math.floor(totalSec / 60);
@@ -1595,9 +1598,13 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                           </h3>
                         </div>
                         <div className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#F7F8FA] border border-[#E9EBEF]">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#151619] mono-live-dot" />
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isCallOpen ? "bg-[#10b981] animate-ping" : "bg-[#737B8B]"
+                            }`}
+                          />
                           <span className="text-[11px] font-semibold text-[#151619]">
-                            Live
+                            {isCallOpen ? "Live Call" : "Standby"}
                           </span>
                         </div>
                       </div>
@@ -1612,9 +1619,13 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                             {currentDomain?.name || "Brew & Bite Cafe"}
                           </div>
                           <div className="text-xs text-[#737B8B] flex items-center space-x-1.5">
-                            <span>In call</span>
+                            <span>{isCallOpen ? "In call" : "Standby"}</span>
                             <span>•</span>
-                            <span>Customer placing an order</span>
+                            <span>
+                              {isCallOpen
+                                ? "Live Customer Conversation"
+                                : "Standing by for incoming calls"}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1628,10 +1639,13 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                               <div
                                 key={i}
                                 className={`w-1 rounded-full bg-[#151619] transition-all duration-300 ${
-                                  isLiveWidgetPaused ? "opacity-30 h-2" : "mono-wave-bar"
+                                  !isCallOpen || isLiveWidgetPaused ? "opacity-20 h-1.5" : "mono-wave-bar"
                                 }`}
                                 style={{
-                                  height: isLiveWidgetPaused ? 6 : `${Math.max(6, height * 0.4)}px`,
+                                  height:
+                                    !isCallOpen || isLiveWidgetPaused
+                                      ? 6
+                                      : `${Math.max(6, height * 0.4)}px`,
                                   animationDelay: `${i * 0.08}s`,
                                 }}
                               />
@@ -1642,9 +1656,11 @@ export const BusinessDemoView: React.FC<BusinessDemoViewProps> = ({
                         {/* Timer & Connection */}
                         <div className="flex items-center justify-between w-full text-xs font-mono text-[#737B8B] px-2">
                           <span className="font-semibold text-[#151619]">
-                            {formatTimer(callTimerSeconds)}
+                            {isCallOpen ? formatTimer(callTimerSeconds) : "00:00"}
                           </span>
-                          <span>HD Audio • WebRTC</span>
+                          <span>
+                            {isCallOpen ? "HD Audio • WebRTC Active" : "WebRTC Standing By"}
+                          </span>
                         </div>
                       </div>
 
