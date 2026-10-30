@@ -1,8 +1,10 @@
-import asyncio
+﻿import asyncio
+import json
 import logging
+import uuid
 from typing import Optional, Dict, Any, Callable, List
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, delete, text
 
 from backend.config import settings
 
@@ -139,10 +141,72 @@ class TelegramService:
                     logger.info(f"Telegram alert sent successfully to {dest_chat_id}")
                     return True
                 logger.error(f"Telegram sendMessage failed: {res.status_code} {res.text}")
+                # Store to pending_alerts for retry
+                await self._store_pending_alert(dest_chat_id, text, reply_markup)
                 return False
         except Exception as e:
             logger.error(f"Telegram HTTP error: {e}")
+            # Store to pending_alerts for retry when network returns
+            await self._store_pending_alert(dest_chat_id, text, reply_markup)
             return False
+
+    async def _store_pending_alert(self, chat_id: str, text: str, reply_markup: Optional[Dict[str, Any]] = None):
+        """Stores a failed Telegram alert into pending_alerts table for background retry."""
+        try:
+            from backend.database import async_session_factory
+            async with async_session_factory() as session:
+                from sqlalchemy import text as sql_text
+                alert_id = str(uuid.uuid4())
+                markup_json = json.dumps(reply_markup) if reply_markup else None
+                await session.execute(sql_text(
+                    "INSERT INTO pending_alerts (id, chat_id, text, reply_markup, retries) "
+                    "VALUES (:id, :chat_id, :text, :markup, 0)"
+                ), {"id": alert_id, "chat_id": chat_id, "text": text, "markup": markup_json})
+                await session.commit()
+                logger.info(f"Stored pending Telegram alert {alert_id} for retry.")
+        except Exception as ex:
+            logger.error(f"Failed to store pending alert: {ex}")
+
+    async def flush_pending_alerts(self):
+        """Retries all pending_alerts. Called periodically from the polling loop."""
+        try:
+            from backend.database import async_session_factory
+            from sqlalchemy import text as sql_text
+            async with async_session_factory() as session:
+                rows = await session.execute(sql_text(
+                    "SELECT id, chat_id, text, reply_markup, retries FROM pending_alerts ORDER BY created_at ASC LIMIT 20"
+                ))
+                alerts = rows.fetchall()
+                if not alerts:
+                    return
+
+                for row in alerts:
+                    alert_id, chat_id, msg_text, markup_str, retries = row
+                    reply_markup = json.loads(markup_str) if markup_str else None
+
+                    url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+                    payload = {"chat_id": chat_id, "text": msg_text, "parse_mode": "Markdown"}
+                    if reply_markup:
+                        payload["reply_markup"] = reply_markup
+
+                    try:
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            res = await client.post(url, json=payload)
+                            if res.status_code == 200:
+                                await session.execute(sql_text("DELETE FROM pending_alerts WHERE id = :id"), {"id": alert_id})
+                                logger.info(f"Flushed pending alert {alert_id} successfully.")
+                            else:
+                                await session.execute(sql_text(
+                                    "UPDATE pending_alerts SET retries = :r WHERE id = :id"
+                                ), {"r": retries + 1, "id": alert_id})
+                    except Exception:
+                        await session.execute(sql_text(
+                            "UPDATE pending_alerts SET retries = :r WHERE id = :id"
+                        ), {"r": retries + 1, "id": alert_id})
+
+                await session.commit()
+        except Exception as ex:
+            logger.debug(f"flush_pending_alerts error: {ex}")
 
     async def send_hold_alert(
         self,
@@ -433,6 +497,8 @@ class TelegramService:
                         logger.error(f"Telegram Bot Token invalid ({resp.status_code}). Stopping polling.")
                         self.is_running = False
                         break
+                    # Flush any pending alerts each polling cycle
+                    await self.flush_pending_alerts()
             except asyncio.CancelledError:
                 break
             except Exception as e:

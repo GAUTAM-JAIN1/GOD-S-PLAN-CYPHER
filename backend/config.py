@@ -1,4 +1,4 @@
-import os
+﻿import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     PORT: int = 8000
     DEBUG: bool = True
     DATABASE_URL: str = "sqlite+aiosqlite:///./voxera.db"
+
+    # Phase 3: Ollama local fallback LLM
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.1:8b"
+
+    # Phase 3: Provider health flags (refreshed on /api/health)
+    ELEVENLABS_TIMEOUT_SEC: float = 10.0
+    GROQ_TIMEOUT_SEC: float = 20.0
+
+    # Phase 4: Local STT via faster-whisper
+    WHISPER_MODEL_SIZE: str = "base"
     
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

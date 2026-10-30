@@ -1,4 +1,4 @@
-import io
+﻿import io
 import json
 import logging
 from typing import Dict, Any, List, Optional
@@ -274,7 +274,8 @@ async def provision_elevenlabs_agent(
             agent_id=None,
             status="NETWORK_ERROR",
             payload_preview=payload,
-            message=f"Network request to ElevenLabs API failed: {str(e)}"
+            message=f"Network request to ElevenLabs API failed: {str(e)}. Frontend should use browser speechSynthesis (use_browser_tts=true).",
+            use_browser_tts=True
         )
 
 async def get_signed_convai_url(agent_id: str) -> Dict[str, Any]:
@@ -411,5 +412,6 @@ async def transcribe_audio_scribe(
         confidence=0.0,
         duration_seconds=0.0,
         engine="none",
-        error="Neither ELEVENLABS_API_KEY nor GROQ_API_KEY is configured in backend/.env."
+        error="Neither ELEVENLABS_API_KEY nor GROQ_API_KEY is configured in backend/.env.",
+        use_browser_tts=True
     )

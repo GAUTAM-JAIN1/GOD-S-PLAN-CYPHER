@@ -1,4 +1,4 @@
-import io
+﻿import io
 import json
 import uuid
 import logging
@@ -426,6 +426,40 @@ app.add_middleware(
 # ----------------- TELEMETRY & HEALTH -----------------
 @app.get("/api/health")
 async def health_check():
+    import httpx
+    from backend.services.groq_compiler import is_ollama_available
+
+    # Probe Groq reachability
+    groq_reachable = False
+    if settings.has_groq:
+        try:
+            from groq import Groq
+            client = Groq(api_key=settings.GROQ_API_KEY)
+            client.models.list()
+            groq_reachable = True
+        except Exception:
+            pass
+
+    # Probe ElevenLabs reachability
+    elevenlabs_reachable = False
+    if settings.has_elevenlabs:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as c:
+                r = await c.get(
+                    "https://api.elevenlabs.io/v1/voices",
+                    headers={"xi-api-key": settings.ELEVENLABS_API_KEY.strip()},
+                )
+                elevenlabs_reachable = r.status_code == 200
+        except Exception:
+            pass
+
+    # Probe local Ollama
+    ollama_available = await is_ollama_available()
+
+    # Determine active providers
+    active_llm = "groq" if groq_reachable else ("ollama" if ollama_available else "none")
+    active_tts = "elevenlabs" if elevenlabs_reachable else "browser_speechSynthesis"
+
     return {
         "status": "online",
         "service": "Voxera Voice AI Workbench",
@@ -440,6 +474,13 @@ async def health_check():
             "tts_engine": "elevenlabs/eleven_flash_v2_5",
             "stt_engine": "elevenlabs/scribe_v1",
             "ws_active_clients": len(ws_manager.active_connections)
+        },
+        "provider_status": {
+            "groq_reachable": groq_reachable,
+            "elevenlabs_reachable": elevenlabs_reachable,
+            "ollama_available": ollama_available,
+            "active_llm_provider": active_llm,
+            "active_tts_provider": active_tts
         }
     }
 
@@ -929,11 +970,26 @@ class CommitActionRequest(BaseModel):
     caller_name: Optional[str] = None
     delivery_address: Optional[str] = None
     notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 @app.post("/api/guardrail/commit-action")
 async def commit_action_endpoint(req: CommitActionRequest, session: AsyncSession = Depends(get_db_session)):
     logger.info(f"Two-Phase Commit requested for: {req.canonical_name} (token={req.token})")
-    
+
+    # Idempotency guard: if this key was already processed, return the stored result
+    if req.idempotency_key:
+        dup_stmt = select(LedgerEntryModel).where(LedgerEntryModel.idempotency_key == req.idempotency_key)
+        dup_result = await session.execute(dup_stmt)
+        existing_entry = dup_result.scalars().first()
+        if existing_entry:
+            logger.info(f"Idempotent replay detected for key={req.idempotency_key} — returning stored result")
+            return {
+                "success": True,
+                "message": f"[IDEMPOTENT] Already committed: {existing_entry.verified_order_summary}",
+                "ledger_id": existing_entry.id,
+                "status": existing_entry.resolution_badge,
+            }
+
     # Boundary check on quantity: strictly enforced in backend code [1, 50]
     if req.quantity < 1 or req.quantity > 50:
         raise HTTPException(
@@ -1001,6 +1057,7 @@ async def commit_action_endpoint(req: CommitActionRequest, session: AsyncSession
         total_amount_inr=total_price,
         phonetic_score=score,
         resolution_badge=domain_badge,
+        idempotency_key=req.idempotency_key,
         details_json=json.dumps({
             "token": req.token,
             "quantity": quantity,
@@ -1044,6 +1101,7 @@ class RequestInterventionPayload(BaseModel):
     reason: Optional[str] = "Caller requested human transfer"
     urgency: Optional[str] = "HIGH"
     caller_utterance: Optional[str] = ""
+    idempotency_key: Optional[str] = None
 
 @app.post("/api/guardrail/request-intervention")
 @app.post("/api/guardrail/request-human-intervention")
@@ -1177,6 +1235,7 @@ class ResolveHoldRequest(BaseModel):
     custom_instruction: Optional[str] = ""
     custom_whisper_text: Optional[str] = ""
     resolved_by: Optional[str] = "DESKTOP_CONSOLE"
+    idempotency_key: Optional[str] = None
 
 @app.post("/api/guardrail/resolve-hold")
 async def resolve_hold_endpoint(req: ResolveHoldRequest):
@@ -1406,6 +1465,55 @@ async def pair_telegram_chat_endpoint(req: PairTelegramChatRequest):
         "telegram_dispatched": sent,
         "message": f"Telegram chat ID {cid} successfully paired & saved in SQLite system_configs."
     }
+
+# ----------------- LOCAL STT FALLBACK (faster-whisper) -----------------
+@app.post("/api/voice/local-stt")
+async def local_stt_endpoint(file: UploadFile = File(...)):
+    """
+    Phase 4: Local speech-to-text using faster-whisper.
+    Used as a fallback when /api/domains/scribe-stt (ElevenLabs + Groq Whisper) fails.
+    Model size controlled by WHISPER_MODEL_SIZE env (default "base").
+    """
+    from backend.services.local_stt_service import transcribe_local, is_available
+
+    if not is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="faster-whisper is not installed. Run: pip install faster-whisper"
+        )
+
+    try:
+        audio_bytes = await file.read()
+        filename = file.filename or "audio.wav"
+        success, text, confidence, duration = await transcribe_local(audio_bytes, filename)
+
+        if success:
+            return {
+                "success": True,
+                "transcription": text,
+                "confidence": confidence,
+                "duration_seconds": duration,
+                "engine": f"faster-whisper/{settings.WHISPER_MODEL_SIZE}",
+            }
+        else:
+            return {
+                "success": False,
+                "transcription": "",
+                "confidence": 0.0,
+                "duration_seconds": 0.0,
+                "engine": "faster-whisper",
+                "error": "Local transcription failed. Model may still be loading.",
+            }
+    except Exception as e:
+        logger.error(f"Local STT endpoint error: {e}", exc_info=True)
+        return {
+            "success": False,
+            "transcription": "",
+            "confidence": 0.0,
+            "duration_seconds": 0.0,
+            "engine": "error",
+            "error": f"Local STT error: {str(e)}",
+        }
 
 # ----------------- ULTRA-FAST LIVE CONVERSATIONAL TURN (<140ms LLM) -----------------
 class LiveTurnRequest(BaseModel):

@@ -1,6 +1,7 @@
-import json
+﻿import json
 import logging
 from typing import Dict, Any, List, Optional
+import httpx
 from groq import Groq
 from backend.config import settings
 from backend.schemas import CatalogItem, StrictPolicy, CompileDomainResponse, LiveRefineResponse
@@ -140,6 +141,50 @@ def get_fast_groq_model(client: Optional[Groq] = None) -> str:
     _cached_fast_groq_model = "llama-3.1-8b-instant"
     return _cached_fast_groq_model
 
+# ── Ollama local LLM fallback ─────────────────────────────────────────────────
+
+async def _ollama_chat(
+    system_prompt: str,
+    user_prompt: str,
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+    timeout: float = 60.0
+) -> Optional[str]:
+    """
+    Calls the local Ollama /api/chat endpoint.
+    Returns the assistant message content, or None on any error.
+    """
+    chosen_model = model or settings.OLLAMA_MODEL
+    payload = {
+        "model": chosen_model,
+        "stream": False,
+        "options": {"temperature": temperature},
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            res = await client.post(f"{settings.OLLAMA_BASE_URL}/api/chat", json=payload)
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("message", {}).get("content", "")
+            logger.warning(f"Ollama returned HTTP {res.status_code}: {res.text[:200]}")
+            return None
+    except Exception as e:
+        logger.warning(f"Ollama unreachable: {e}")
+        return None
+
+async def is_ollama_available() -> bool:
+    """Quick ping to check if local Ollama daemon is running."""
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            res = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
+            return res.status_code == 200
+    except Exception:
+        return False
+
 def generate_pydantic_literal_code(domain_name: str, items: List[CatalogItem]) -> str:
     cleaned_name = "".join(c for c in domain_name if c.isalnum()) or "Domain"
     item_names = [f'    "{item.canonical_name}"' for item in items]
@@ -237,7 +282,35 @@ CRITICAL BUSINESS & CONVERSATIONAL RULES:
         )
 
     except Exception as e:
-        logger.error(f"Groq compilation error: {e}", exc_info=True)
+        logger.warning(f"Groq compilation failed ({e}). Attempting Ollama fallback ({settings.OLLAMA_MODEL})...")
+        try:
+            ollama_raw = await _ollama_chat(
+                system_prompt=SYSTEM_COMPILER_PROMPT,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                timeout=90.0
+            )
+            if ollama_raw:
+                data = json.loads(ollama_raw)
+                catalog_items = [CatalogItem(**item) for item in data.get("catalog_items", [])]
+                strict_policies = [StrictPolicy(**pol) for pol in data.get("strict_policies", [])]
+                menu_summary = "\n".join([f"- {it.canonical_name}: \u20b9{int(it.price_inr)}" for it in catalog_items])
+                raw_prompt = data.get("system_prompt", "")
+                grounded = f"{raw_prompt}\n\nVERIFIED LIVE CATALOG:\n{menu_summary}"
+                pydantic_code = generate_pydantic_literal_code(business_name, catalog_items)
+                return CompileDomainResponse(
+                    success=True,
+                    domain_id=business_name.lower().replace(" ", "-"),
+                    system_prompt=grounded,
+                    first_message=data.get("first_message", f"Namaste, {business_name}!"),
+                    catalog_items=catalog_items,
+                    strict_policies=strict_policies,
+                    pydantic_literal_code=pydantic_code,
+                    compiled_by=f"Ollama/{settings.OLLAMA_MODEL} (Groq fallback)",
+                    raw_tokens_used=0
+                )
+        except Exception as ollama_err:
+            logger.error(f"Ollama fallback also failed: {ollama_err}", exc_info=True)
         return CompileDomainResponse(
             success=False,
             domain_id=business_name.lower().replace(" ", "-"),
@@ -246,7 +319,7 @@ CRITICAL BUSINESS & CONVERSATIONAL RULES:
             catalog_items=[],
             strict_policies=[],
             pydantic_literal_code="",
-            error=f"Groq Compilation Failed: {str(e)}"
+            error=f"Groq failed: {str(e)}. Ollama also unavailable. Check OLLAMA_MODEL env or start Ollama."
         )
 
 async def live_refine_agent(
@@ -297,14 +370,32 @@ OWNER REFINE INSTRUCTION:
         )
 
     except Exception as e:
-        logger.error(f"Live refine error: {e}", exc_info=True)
+        logger.warning(f"Groq live refine failed ({e}). Attempting Ollama fallback...")
+        try:
+            ollama_raw = await _ollama_chat(
+                system_prompt=LIVE_REFINE_SYSTEM_PROMPT,
+                user_prompt=prompt,
+                temperature=0.1,
+                timeout=60.0
+            )
+            if ollama_raw:
+                data = json.loads(ollama_raw)
+                return LiveRefineResponse(
+                    success=True,
+                    diff_applied=data.get("diff_applied", [f"+ Applied via Ollama: {refine_instruction}"]),
+                    updated_system_prompt=data.get("updated_system_prompt", current_system_prompt),
+                    updated_first_message=data.get("updated_first_message", current_first_message),
+                    elevenlabs_synced=False
+                )
+        except Exception as ollama_err:
+            logger.error(f"Ollama refine fallback also failed: {ollama_err}")
         return LiveRefineResponse(
             success=False,
             diff_applied=[],
             updated_system_prompt=current_system_prompt,
             updated_first_message=current_first_message,
             elevenlabs_synced=False,
-            error=f"Refine Failed: {str(e)}"
+            error=f"Groq failed: {str(e)}. Ollama also unavailable."
         )
 
 async def extract_clean_business_name(raw_text: str) -> str:

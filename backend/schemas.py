@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+﻿from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
 class CatalogItem(BaseModel):
@@ -77,6 +77,7 @@ class ProvisionAgentResponse(BaseModel):
     status: str
     payload_preview: Dict[str, Any] = Field(default_factory=dict)
     message: str
+    use_browser_tts: bool = False
 
 class ScribeSTTResponse(BaseModel):
     success: bool
@@ -85,6 +86,7 @@ class ScribeSTTResponse(BaseModel):
     duration_seconds: float
     engine: str
     error: Optional[str] = None
+    use_browser_tts: bool = False
 
 class PDFParseResponse(BaseModel):
     success: bool
