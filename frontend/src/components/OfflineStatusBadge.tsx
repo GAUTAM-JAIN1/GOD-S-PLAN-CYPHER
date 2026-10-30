@@ -74,6 +74,7 @@ export function OfflineStatusBadge({ className = "" }: BadgeProps) {
 
   return (
     <div
+      suppressHydrationWarning
       className={`hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-[#F7F8FA] border border-[#E9EBEF] text-[11px] font-medium text-[#34373D] select-none ${className}`}
       title={
         state === "syncing"
@@ -83,9 +84,8 @@ export function OfflineStatusBadge({ className = "" }: BadgeProps) {
           : "All systems online"
       }
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-      <span>{label}</span>
+      <span suppressHydrationWarning className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+      <span suppressHydrationWarning>{label}</span>
     </div>
   );
 }
-

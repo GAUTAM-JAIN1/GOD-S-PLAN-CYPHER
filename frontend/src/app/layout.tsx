@@ -25,12 +25,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#151619" />
       </head>
-      <body className="h-screen w-screen overflow-hidden bg-[#F7F8FA] text-[#151619] font-sans antialiased">
+      <body suppressHydrationWarning className="h-screen w-screen overflow-hidden bg-[#F7F8FA] text-[#151619] font-sans antialiased">
         <ServiceWorkerRegistrar />
         {children}
       </body>

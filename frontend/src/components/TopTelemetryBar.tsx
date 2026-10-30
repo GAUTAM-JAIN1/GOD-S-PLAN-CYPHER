@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { Terminal, LayoutGrid, Radio, Plus, Sparkles, ShieldCheck } from "lucide-react";
@@ -64,12 +64,16 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
       {/* Center: Landing Nav Links (Product, Solutions, Pricing, Docs, Enterprise) */}
       <nav className="hidden lg:flex items-center space-x-7 text-xs font-medium text-[#737B8B]">
         <button
+          type="button"
+          suppressHydrationWarning
           onClick={() => setActiveTab("main")}
           className="hover:text-[#151619] transition-colors"
         >
           Product
         </button>
         <button
+          type="button"
+          suppressHydrationWarning
           onClick={() => {
             setActiveTab("main");
             const el = document.getElementById("voxera-dashboard");
@@ -80,18 +84,24 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
           Solutions
         </button>
         <button
+          type="button"
+          suppressHydrationWarning
           onClick={() => alert("Voxera Enterprise: Custom SLA, Dedicated SIP trunks & On-prem Guardrail runtime.")}
           className="hover:text-[#151619] transition-colors"
         >
           Pricing
         </button>
         <button
+          type="button"
+          suppressHydrationWarning
           onClick={() => window.open("http://localhost:8000/docs", "_blank")}
           className="hover:text-[#151619] transition-colors"
         >
           Docs
         </button>
         <button
+          type="button"
+          suppressHydrationWarning
           onClick={() => alert("Voxera Enterprise PSTN: Twilio SIP Trunking + 99.99% Uptime SLA.")}
           className="hover:text-[#151619] transition-colors"
         >
@@ -106,6 +116,8 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
         {/* The 2 Core Tabs Switcher */}
         <div className="flex items-center p-0.5 bg-[#F7F8FA] border border-[#E9EBEF] rounded-full shadow-xs">
           <button
+            type="button"
+            suppressHydrationWarning
             id="btn-nav-main"
             onClick={() => setActiveTab("main")}
             className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
@@ -119,6 +131,8 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
           </button>
 
           <button
+            type="button"
+            suppressHydrationWarning
             id="btn-nav-dev"
             onClick={() => setActiveTab("dev")}
             className={`relative flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
@@ -140,6 +154,8 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
         {/* Sign in / Get Started */}
         <div className="flex items-center space-x-2">
           <button
+            type="button"
+            suppressHydrationWarning
             onClick={() => alert("Workspace: GAUTAM-JAIN1 (Administrator)")}
             className="text-xs font-medium text-[#34373D] hover:text-[#151619] px-2.5 py-1.5 transition-colors hidden sm:block"
           >
@@ -147,6 +163,8 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
           </button>
 
           <button
+            type="button"
+            suppressHydrationWarning
             onClick={onCreateAgentClick}
             className="btn-apple-primary px-3.5 py-1.5 text-xs flex items-center space-x-1.5"
           >
