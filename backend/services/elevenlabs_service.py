@@ -69,7 +69,8 @@ MANDATORY ACOUSTIC & SPOKEN RULES:
 4. SINGLE-SPEAKER VOICE FOCUS: Focus EXCLUSIVELY on the single primary speaker conversing with you. Completely ignore ambient chatter, background noise, or bystanders. Only respond to direct inquiries.
 5. Instant Tool Invocation: When caller orders or asks for service, IMMEDIATELY call verify_catalog_item.
 6. ORDER CONFIRMATION & COMMIT: When the caller confirms the order (e.g. 'confirm kar do', 'order place kar do', 'theek hai', 'haanji', 'confirm'), IMMEDIATELY call commit_verified_action with the verified canonical_name and total_price_inr! You may use 'Customer' if name is not given. Once committed, thank the caller warmly and tell them the order is locked in POS!
-7. HUMAN TRANSFER: If caller asks for owner, manager, doctor, or human, immediately call request_human_intervention tool."""
+7. HUMAN TRANSFER: If caller asks for owner, manager, doctor, or human, immediately call request_human_intervention tool.
+8. CATEGORY GUIDANCE: If caller asks general menu questions ('kya kya hai?', 'menu batao', 'options kya hain'), introduce the main categories in under 15 words rather than reading the whole menu. When they choose a category, give 2-3 items with prices."""
 
     return {
         "name": f"Voxera — {business_name}",

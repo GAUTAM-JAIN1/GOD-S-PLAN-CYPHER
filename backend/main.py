@@ -1527,53 +1527,89 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
     from backend.services.gauntlet_runner import call_groq_agent_turn
     from backend.services.groq_compiler import get_fast_groq_model
 
-    # Build Grounded Catalog Context
+    # Build Grounded Catalog Context structured by categories
     catalog_items = []
     catalog_summary = ""
+    categories_dict: Dict[str, List[str]] = {}
     if profile.catalog_json:
         try:
             catalog_items = json.loads(profile.catalog_json)
-            menu_lines = [
-                f"- {it.get('canonical_name')}: Rs {int(it.get('price_inr', 0))} ({it.get('category', 'Item')})"
-                for it in catalog_items
-            ]
-            catalog_summary = "\n".join(menu_lines)
+            for it in catalog_items:
+                cat = it.get("category", "General")
+                if cat not in categories_dict:
+                    categories_dict[cat] = []
+                categories_dict[cat].append(f"{it.get('canonical_name')}: Rs {int(it.get('price_inr', 0))}")
+
+            cat_blocks = []
+            for cat, items in categories_dict.items():
+                cat_blocks.append(f"• Category '{cat}':\n  " + "\n  ".join(f"- {i}" for i in items))
+            catalog_summary = "\n\n".join(cat_blocks)
         except Exception:
             pass
 
+    category_list_str = ", ".join(f"'{c}'" for c in categories_dict.keys()) if categories_dict else "services"
     grounded_system_prompt = f"""{profile.system_prompt}
 
-VERIFIED LIVE CATALOG (ABSOLUTE GROUND TRUTH - ZERO HALLUCINATION):
+VERIFIED LIVE BUSINESS CATALOG (GROUPED BY CATEGORY):
 {catalog_summary if catalog_summary else 'No catalog items registered.'}
 
-CRITICAL CONVERSATIONAL & ACCURACY LAWS:
-1. OUTPUT: Output ONLY the direct spoken words to the caller. Never output markdown, bullet points, asterisks, or tool syntax.
-2. PER-PERSON VOICE FOCUS: Focus EXCLUSIVELY on the single primary speaker conversing with you. Completely ignore ambient chatter, background voices, or bystanders. Only process direct instructions from the caller.
-3. MENU QUERIES: If caller asks what is available or on the menu ('khane me kya hai?'), ONLY list the exact items from the verified catalog above. NEVER invent unlisted items.
-4. UNAVAILABLE ITEMS: If caller asks for any item NOT on this menu (e.g. burger or unlisted dishes), politely decline saying it is not available, and recommend 1-2 available items from the catalog.
-5. ORDER VERIFICATION: When customer orders items, calculate the exact total price from the catalog. Always state the canonical items, quantities, exact total price in clear Hindi words (e.g. 'Total teen sau rupaye'), and ask for confirmation ('Confirm kar du?').
-6. CONVERSATION CADENCE: Keep spoken responses under 18 words in natural, friendly Indian Hinglish/English. Crisp, direct, and sub-second immediate."""
+CRITICAL CONVERSATIONAL & CATEGORY GUIDANCE LAWS:
+1. OUTPUT: Output ONLY the direct spoken words to the caller. Never output markdown, asterisks, bullet points, or code.
+2. PER-PERSON VOICE FOCUS: Focus EXCLUSIVELY on the single primary speaker conversing with you. Completely ignore ambient chatter, background noise, or bystanders.
+3. MENU INQUIRIES & CATEGORY GUIDANCE:
+   - When caller asks general menu questions ('kya kya hai?', 'menu batao', 'khane me kya hai?', 'kya milta hai?', 'services batao'):
+     DO NOT recite all items at once! Introduce our available categories crisply in under 18 words (e.g. 'Hamare paas {category_list_str} hain. Aap kisme dekhna pasand karenge?').
+   - When caller asks about a specific category (e.g. 'panini me kya hai?' or 'cleaning me kya hai?'):
+     List 2-3 signature items in that category with exact INR prices and ask which one they prefer.
+4. SPECIFIC ITEM AVAILABILITY:
+   - If caller asks about a specific item present in our catalog: confirm immediately with its exact price and ask if they'd like to order it.
+   - If caller asks for an item NOT in our catalog (e.g. unlisted food, competitors, or external services): politely state it is not available, and recommend 1-2 available items from our closest category.
+5. ORDER READBACK & CONFIRMATION:
+   When items are ordered, calculate the exact total price. State the exact canonical item names, quantities, and total price in words (e.g. 'Total paanch sau saath rupaye'), and ask: 'Confirm kar du?'.
+6. CADENCE & TONE: Keep every spoken response strictly under 18 words in warm, natural Indian Hinglish/English. No monologues, no endless blabber."""
 
     # 4. Multi-Item Double-Metaphone Phonetic Extraction & Mathematical Guardrail
     hint_system_message = None
     committed_order_info = None
 
-    # Check if caller is confirming an order
+    # Check if caller is confirming an order (isolated confirmation response)
     is_confirming = any(p in utt_lower for p in [
         "confirm kar do", "confirm kardo", "order confirm", "theek hai kar do",
-        "haan kar do", "ha kr do", "yes confirm", "confirm hai", "pack kar do",
+        "haan kar do", "ha kr do", "yes confirm", "confirm hai",
         "maine confirm kar diya", "confirm kr dia", "order place kar do", "haanji kar do",
-        "haanji pack", "haan lock", "lock kar do", "confirm", "haan confirm"
+        "haanji pack", "haan lock", "lock kar do", "confirm", "haan confirm", "theek hai pack kar do"
+    ]) and not any(k in utt_lower for k in [" aur ", "cold brew", "panini", "chai", "samosa", "rct", "flat", "apartment", "bhk", "wrap", "wedges"])
+
+    # Check if caller is asking a general menu or category inquiry
+    is_menu_query = any(phrase in utt_lower for phrase in [
+        "kya kya hai", "menu batao", "menu kya hai", "kya menu", "kya milta",
+        "options kya", "kya khana", "kya options", "what is on the menu",
+        "what do you have", "what's available", "kya available hai", "kya dishes",
+        "kya services", "services batao", "kya treatments"
+    ])
+
+    # Check if caller is asking about item price/availability rather than placing an order
+    is_info_query = any(phrase in utt_lower for phrase in [
+        "kitne ka", "price kya", "rate kya", "cost kya", "kitna rate",
+        "available hai kya", "milega kya", "mil jayega kya"
     ])
 
     if is_confirming:
-        # Look up most recent uncommitted pending order for this session or domain
+        # Prioritize uncommitted pending order for this exact session
         pending_stmt = select(PendingVerificationModel).where(
-            PendingVerificationModel.domain_id == req.domain_id,
+            PendingVerificationModel.session_id == session_id,
             PendingVerificationModel.status == "VERIFIED_AWAITING_READBACK"
         ).order_by(PendingVerificationModel.created_at.desc())
         pending_res = await session.execute(pending_stmt)
         pending = pending_res.scalars().first()
+
+        if not pending:
+            pending_stmt = select(PendingVerificationModel).where(
+                PendingVerificationModel.domain_id == req.domain_id,
+                PendingVerificationModel.status == "VERIFIED_AWAITING_READBACK"
+            ).order_by(PendingVerificationModel.created_at.desc())
+            pending_res = await session.execute(pending_stmt)
+            pending = pending_res.scalars().first()
 
         if pending:
             pending.status = "COMMITTED"
@@ -1632,7 +1668,7 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
                 f"Aapka order jaldi ready ho jayega!'"
             )
 
-    elif catalog_items:
+    elif catalog_items and not is_menu_query and not is_info_query:
         try:
             from backend.services.phonetic_guardrail import match_multi_item_order, evaluate_hardened_entity
             typed_catalog = []
@@ -1645,67 +1681,14 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
                     category=it.get("category", "General")
                 ))
 
-            # Ambiguous check: If caller utterance sounds like an item but has low confidence (< 0.85), trigger Whisper Hold!
-            eval_res = evaluate_hardened_entity(
-                domain_id=req.domain_id,
-                spoken_entity=req.user_utterance,
-                catalog=typed_catalog,
-                quantity=1
-            )
-            if eval_res.get("match_type") == "WHISPER_HOLD":
-                candidates = eval_res.get("candidates", [])
-                c1 = json.dumps(candidates[0]) if len(candidates) > 0 else "{}"
-                c2 = json.dumps(candidates[1]) if len(candidates) > 1 else "{}"
-                hold_reason = "AMBIGUOUS_TOP2_MATCH" if eval_res.get("is_ambiguous") else "LOW_CONFIDENCE_AUDIO"
-                hold_id = f"hold_{uuid.uuid4().hex[:8]}"
-
-                hold = InterceptHoldModel(
-                    id=hold_id,
-                    session_id=session_id,
-                    domain_id=req.domain_id,
-                    spoken_entity=req.user_utterance,
-                    caller_utterance=req.user_utterance,
-                    phonetic_score=eval_res["score"],
-                    candidate_1_json=c1,
-                    candidate_2_json=c2,
-                    hold_reason=hold_reason,
-                    status="ACTIVE_HOLD"
-                )
-                session.add(hold)
-                await session.commit()
-
-                expires_at_ms = whisper_sla_manager.schedule_sla_timeout(
-                    hold_id=hold_id,
-                    timeout_sec=8.0,
-                    session_id=session_id,
-                    domain_id=req.domain_id,
-                    caller_utterance=req.user_utterance
-                )
-
-                await ws_manager.broadcast({
-                    "type": "WHISPER_INTERCEPT",
-                    "hold_id": hold_id,
-                    "session_id": session_id,
-                    "domain_id": req.domain_id,
-                    "score": eval_res["score"],
-                    "candidates": candidates,
-                    "caller_utterance": req.user_utterance,
-                    "hold_reason": hold_reason,
-                    "expires_at_epoch_ms": expires_at_ms
-                })
-
-                hint_system_message = (
-                    f"[SYSTEM EVENT: WHISPER HOLD TRIGGERED]: Audio was ambiguous (score {eval_res['score']:.2f}). "
-                    f"A live Whisper Co-Pilot hold has been opened. Politely ask: "
-                    f"'Ek second hold kijiyega, audio thoda unclear tha, kya aap {candidates[0]['canonical_name'] if candidates else 'yeh item'} chahte hain?'"
-                )
-
+            # 1. Multi-item check: If utterance contains conjunctions ('aur', 'and', '+', ',') or matches multiple items
+            has_multiple_segments = bool(re.search(r'\b(?:aur|and|plus|,|\+)\b', req.user_utterance, flags=re.IGNORECASE))
             matched_orders = match_multi_item_order(req.user_utterance, typed_catalog)
-            if matched_orders and not hint_system_message:
+
+            if matched_orders and (has_multiple_segments or len(matched_orders) > 1):
                 total_calc = sum(int(m["price_inr"]) * int(m.get("quantity", 1)) for m in matched_orders)
                 items_names = " aur ".join(f"{m.get('quantity', 1)}x {m['canonical_name']}" for m in matched_orders)
-                
-                # Save PendingVerificationModel so when caller says "confirm", it locks into POS!
+
                 tok = f"tok_{uuid.uuid4().hex[:12]}"
                 pending_order = PendingVerificationModel(
                     token=tok,
@@ -1727,6 +1710,88 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
                     f"Grand Total = ₹{total_calc}. State these exact canonical item names and exact total ₹{total_calc} "
                     f"to caller and ask for confirmation ('Confirm kar du?')."
                 )
+            elif matched_orders and len(matched_orders) == 1 and matched_orders[0]["score"] >= 0.85:
+                # Single clear item order
+                m = matched_orders[0]
+                total_calc = int(m["price_inr"]) * int(m.get("quantity", 1))
+                item_name = f"{m.get('quantity', 1)}x {m['canonical_name']}"
+
+                tok = f"tok_{uuid.uuid4().hex[:12]}"
+                pending_order = PendingVerificationModel(
+                    token=tok,
+                    domain_id=req.domain_id,
+                    session_id=session_id,
+                    canonical_name=item_name,
+                    quantity=m.get("quantity", 1),
+                    unit_price_inr=float(m["price_inr"]),
+                    total_price_inr=float(total_calc),
+                    phonetic_score=m["score"],
+                    caller_phone="+91 98712 44321",
+                    status="VERIFIED_AWAITING_READBACK"
+                )
+                session.add(pending_order)
+                await session.commit()
+
+                hint_system_message = (
+                    f"[GUARDRAIL VERIFIED ORDER]: Customer ordered: {item_name}. "
+                    f"Grand Total = ₹{total_calc}. State this canonical item name and exact total ₹{total_calc} "
+                    f"to caller and ask for confirmation ('Confirm kar du?')."
+                )
+            else:
+                # Ambiguous single item acoustic check: trigger Whisper Hold if uncertain
+                eval_res = evaluate_hardened_entity(
+                    domain_id=req.domain_id,
+                    spoken_entity=req.user_utterance,
+                    catalog=typed_catalog,
+                    quantity=1
+                )
+                if eval_res.get("match_type") == "WHISPER_HOLD":
+                    candidates = eval_res.get("candidates", [])
+                    c1 = json.dumps(candidates[0]) if len(candidates) > 0 else "{}"
+                    c2 = json.dumps(candidates[1]) if len(candidates) > 1 else "{}"
+                    hold_reason = "AMBIGUOUS_TOP2_MATCH" if eval_res.get("is_ambiguous") else "LOW_CONFIDENCE_AUDIO"
+                    hold_id = f"hold_{uuid.uuid4().hex[:8]}"
+
+                    hold = InterceptHoldModel(
+                        id=hold_id,
+                        session_id=session_id,
+                        domain_id=req.domain_id,
+                        spoken_entity=req.user_utterance,
+                        caller_utterance=req.user_utterance,
+                        phonetic_score=eval_res["score"],
+                        candidate_1_json=c1,
+                        candidate_2_json=c2,
+                        hold_reason=hold_reason,
+                        status="ACTIVE_HOLD"
+                    )
+                    session.add(hold)
+                    await session.commit()
+
+                    expires_at_ms = whisper_sla_manager.schedule_sla_timeout(
+                        hold_id=hold_id,
+                        timeout_sec=8.0,
+                        session_id=session_id,
+                        domain_id=req.domain_id,
+                        caller_utterance=req.user_utterance
+                    )
+
+                    await ws_manager.broadcast({
+                        "type": "WHISPER_INTERCEPT",
+                        "hold_id": hold_id,
+                        "session_id": session_id,
+                        "domain_id": req.domain_id,
+                        "score": eval_res["score"],
+                        "candidates": candidates,
+                        "caller_utterance": req.user_utterance,
+                        "hold_reason": hold_reason,
+                        "expires_at_epoch_ms": expires_at_ms
+                    })
+
+                    hint_system_message = (
+                        f"[SYSTEM EVENT: WHISPER HOLD TRIGGERED]: Audio was ambiguous (score {eval_res['score']:.2f}). "
+                        f"A live Whisper Co-Pilot hold has been opened. Politely ask: "
+                        f"'Ek second hold kijiyega, audio thoda unclear tha, kya aap {candidates[0]['canonical_name'] if candidates else 'yeh item'} chahte hain?'"
+                    )
         except Exception as ex:
             logger.warning(f"Error in phonetic multi-item order extraction: {ex}")
 

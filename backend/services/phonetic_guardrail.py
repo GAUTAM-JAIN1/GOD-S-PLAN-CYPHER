@@ -368,8 +368,8 @@ def evaluate_hardened_entity(
                 "is_ambiguous": False,
                 "instruction": f"Order blocked: Dynamic Schema validation error: {str(val_err)}",
             }
-    else:
-        # Score < 0.85 or Ambiguity Trap -> Low Confidence Intercept Hold
+    elif is_ambiguous or final_top_score >= 0.45:
+        # Score in [0.45, 0.85) or Ambiguity Trap -> Caller actually attempted an item name with uncertainty -> Low Confidence Intercept Hold
         hold_reason_desc = (
             f"Ambiguity detected between Top 2 items (P1={p1}%, P2={p2}%)"
             if is_ambiguous
@@ -393,6 +393,23 @@ def evaluate_hardened_entity(
             "modifiers": combined_modifiers,
             "candidates": top_candidates,
             "instruction": holding_msg,
+        }
+    else:
+        # Score < 0.45: Normal conversation, greeting, question, or no item mentioned
+        return {
+            "success": False,
+            "match_type": "NO_ITEM_MENTIONED",
+            "score": final_top_score,
+            "verification_token": None,
+            "is_ambiguous": False,
+            "filtered_entity": filtered_entity,
+            "matched_item": None,
+            "quantity": 1,
+            "unit_price_inr": 0.0,
+            "total_price_inr": 0.0,
+            "modifiers": [],
+            "candidates": [],
+            "instruction": "No specific catalog item recognized.",
         }
 
 def match_multi_item_order(utterance: str, catalog_items: List[CatalogItem]) -> List[Dict[str, Any]]:
