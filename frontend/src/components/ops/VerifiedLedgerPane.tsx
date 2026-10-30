@@ -206,6 +206,16 @@ export const VerifiedLedgerPane: React.FC = () => {
                   const isMobileApproved = row.status === "MOBILE APPROVED";
                   const isAssisted = row.status === "ASSISTED HOLD";
                   const isCallback = row.status === "PRIORITY CALLBACK";
+                  const isSpamOrBlocked =
+                    row.status.includes("CALL ENDED") ||
+                    row.status.includes("OFF-TOPIC") ||
+                    row.status.includes("SHIELD") ||
+                    row.status.includes("TERMINATED") ||
+                    row.status.includes("BLOCKED") ||
+                    row.status.includes("SPAM") ||
+                    row.phoneticGate.includes("Spam") ||
+                    row.phoneticGate.includes("Blocked") ||
+                    row.phoneticGate.includes("Rejected");
 
                   return (
                     <tr
@@ -226,14 +236,16 @@ export const VerifiedLedgerPane: React.FC = () => {
                         <div className="text-[#f4f4f6] font-sans font-medium">
                           {row.action}
                         </div>
-                        <div className="text-[10px] text-[#10b981] font-bold">
+                        <div className={`text-[10px] font-bold ${isSpamOrBlocked ? "text-[#ef4444]" : "text-[#10b981]"}`}>
                           {row.totalInr}
                         </div>
                       </td>
                       <td className="py-2.5 px-3">
                         <span
                           className={`px-2 py-0.5 rounded-[3px] text-[10px] font-medium ${
-                            row.phoneticGate.includes("Direct Pass")
+                            isSpamOrBlocked
+                              ? "bg-[#ef4444]/15 text-[#ef4444] border border-[#ef4444]/40 font-semibold"
+                              : row.phoneticGate.includes("Direct Pass")
                               ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30"
                               : row.phoneticGate.includes("Assisted")
                               ? "bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/30"
@@ -246,7 +258,9 @@ export const VerifiedLedgerPane: React.FC = () => {
                       <td className="py-2.5 px-3">
                         <span
                           className={`px-2 py-0.5 rounded-[4px] text-[10px] font-bold border ${
-                            isMobileApproved
+                            isSpamOrBlocked
+                              ? "bg-[#ef4444]/15 border-[#ef4444]/40 text-[#ef4444] uppercase tracking-wide"
+                              : isMobileApproved
                               ? "bg-[#8b5cf6]/15 border-[#8b5cf6]/40 text-[#c084fc]"
                               : isCallback
                               ? "bg-[#f59e0b]/15 border-[#f59e0b]/40 text-[#f59e0b]"
@@ -255,7 +269,7 @@ export const VerifiedLedgerPane: React.FC = () => {
                               : "bg-[#16161a] border-[#2c2c35] text-[#f4f4f6]"
                           }`}
                         >
-                          {row.status}
+                          {isSpamOrBlocked && !row.status.includes("SPAM") ? `${row.status} (SPAM)` : row.status}
                         </span>
                       </td>
                       <td className="py-2.5 px-3 text-right text-[11px] text-[#71717a]">

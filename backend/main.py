@@ -1188,13 +1188,22 @@ async def list_ledger_entries(session: AsyncSession = Depends(get_db_session)):
 
     formatted = []
     for e in entries:
-        gate_label = f"{e.phonetic_score:.2f} (Direct Pass)"
-        if "ASSISTED" in e.resolution_badge or "SLA" in e.resolution_badge:
+        is_spam_or_blocked = any(k in e.resolution_badge.upper() for k in [
+            "CALL ENDED", "OFF-TOPIC", "SHIELD", "TERMINATED", "BLOCKED", "INJECTION", "FLOOD", "SPAM"
+        ])
+
+        if is_spam_or_blocked:
+            gate_label = "0.00 (Spam Blocked)"
+        elif "ASSISTED" in e.resolution_badge or "SLA" in e.resolution_badge:
             gate_label = f"{e.phonetic_score:.2f} -> Assisted Hold"
         elif "MOBILE" in e.resolution_badge or "TRANSFERRED" in e.resolution_badge:
             gate_label = "Escalated -> Transfer"
         elif "PRIORITY" in e.resolution_badge:
             gate_label = "Escalated -> Busy"
+        elif e.phonetic_score >= 0.85:
+            gate_label = f"{e.phonetic_score:.2f} (Direct Pass)"
+        else:
+            gate_label = f"{e.phonetic_score:.2f} (Rejected)"
 
         details_parsed = {}
         try:
@@ -1417,6 +1426,20 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
             "domain_id": req.domain_id,
             "reason": shield_res.get("reason")
         })
+        await ws_manager.broadcast({
+            "type": "ACTION_COMMITTED",
+            "entry": {
+                "id": f"#SHIELD-{uuid.uuid4().hex[:8]}",
+                "sessionId": session_id,
+                "callerPhone": "+91 Security Shield",
+                "language": "English/Hinglish",
+                "action": f"[{shield_res.get('status', 'TERMINATED BY SHIELD')}]: {shield_res.get('reason')}",
+                "totalInr": "₹0.00",
+                "phoneticGate": "0.00 (Spam Blocked)",
+                "status": "TERMINATED BY SHIELD",
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S")
+            }
+        })
         return {
             "success": False,
             "reply": shield_res.get("reply"),
@@ -1445,6 +1468,20 @@ async def voice_live_turn_endpoint(req: LiveTurnRequest, session: AsyncSession =
                 "session_id": session_id,
                 "domain_id": req.domain_id,
                 "reason": "OFF_TOPIC_2_STRIKES"
+            })
+            await ws_manager.broadcast({
+                "type": "ACTION_COMMITTED",
+                "entry": {
+                    "id": f"#SHIELD-{uuid.uuid4().hex[:8]}",
+                    "sessionId": session_id,
+                    "callerPhone": "+91 Security Shield",
+                    "language": "English/Hinglish",
+                    "action": "[CALL ENDED (OFF-TOPIC)]: Persistent off-topic queries reached Strike 2",
+                    "totalInr": "₹0.00",
+                    "phoneticGate": "0.00 (Spam Blocked)",
+                    "status": "CALL ENDED (OFF-TOPIC)",
+                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S")
+                }
             })
         return {
             "success": True,

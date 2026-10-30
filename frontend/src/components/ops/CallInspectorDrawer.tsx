@@ -47,7 +47,15 @@ export const CallInspectorDrawer: React.FC<CallInspectorDrawerProps> = ({
   if (!session) return null;
 
   const score = session.phoneticScore !== undefined ? session.phoneticScore : 0.94;
-  const isPass = score >= 0.85;
+  const isSpam =
+    session.status.includes("CALL ENDED") ||
+    session.status.includes("OFF-TOPIC") ||
+    session.status.includes("SHIELD") ||
+    session.status.includes("TERMINATED") ||
+    session.status.includes("SPAM") ||
+    session.phoneticGate.includes("Spam") ||
+    session.phoneticGate.includes("Blocked");
+  const isPass = !isSpam && score >= 0.85;
   const isMobile =
     session.status.includes("MOBILE") ||
     session.status.includes("TELEGRAM") ||
@@ -198,10 +206,18 @@ export const CallInspectorDrawer: React.FC<CallInspectorDrawerProps> = ({
                     Match Decision:{" "}
                     <span
                       className={`font-semibold ${
-                        isPass ? "text-[#10b981]" : "text-[#f59e0b]"
+                        isSpam
+                          ? "text-[#ef4444]"
+                          : isPass
+                          ? "text-[#10b981]"
+                          : "text-[#f59e0b]"
                       }`}
                     >
-                      {isPass ? "DETERMINISTIC_PASS (Score >= 0.85)" : "WHISPER_INTERCEPT_HOLD"}
+                      {isSpam
+                        ? "SPAM_TERMINATED (BrutalShield Strike 2 / Off-Topic Drop)"
+                        : isPass
+                        ? "DETERMINISTIC_PASS (Score >= 0.85)"
+                        : "WHISPER_INTERCEPT_HOLD"}
                     </span>
                   </div>
                 </div>
