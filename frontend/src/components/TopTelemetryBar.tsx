@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import { Terminal, LayoutGrid, Radio, Plus, Sparkles, ShieldCheck } from "lucide-react";
+import { OfflineStatusBadge } from "./OfflineStatusBadge";
 
 export type ViewTabMode = "main" | "dev";
 
@@ -100,6 +101,8 @@ export const TopTelemetryBar: React.FC<TopTelemetryBarProps> = ({
 
       {/* Right: Switcher between Voice Studio & Developer Inspector + CTAs */}
       <div className="flex items-center space-x-3">
+        {/* Offline / Online status badge */}
+        <OfflineStatusBadge />
         {/* The 2 Core Tabs Switcher */}
         <div className="flex items-center p-0.5 bg-[#F7F8FA] border border-[#E9EBEF] rounded-full shadow-xs">
           <button

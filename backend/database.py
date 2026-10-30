@@ -1,4 +1,4 @@
-import json
+﻿import json
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Optional
 from sqlalchemy import String, Text, DateTime, Integer, Float, event
@@ -83,6 +83,8 @@ class LedgerEntryModel(Base):
     details_json: Mapped[str] = mapped_column(Text, default="{}")
     timestamp: Mapped[str] = mapped_column(String(32), default=lambda: datetime.now(timezone.utc).strftime("%H:%M:%S"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Offline-first idempotency: nullable unique key so replayed outbox items are deduplicated
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True)
 
 class InterceptHoldModel(Base):
     __tablename__ = "intercept_holds"
@@ -149,6 +151,29 @@ async def init_db():
             pass
         try:
             await conn.execute(text("ALTER TABLE domain_profiles ADD COLUMN crew_execution_log_json TEXT DEFAULT '[]';"))
+        except Exception:
+            pass
+        # Safe migration: add idempotency_key to ledger_entries (does not delete data)
+        try:
+            await conn.execute(text("ALTER TABLE ledger_entries ADD COLUMN idempotency_key VARCHAR(64) NULL;"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_idempotency ON ledger_entries (idempotency_key) WHERE idempotency_key IS NOT NULL;"))
+        except Exception:
+            pass
+        # Safe migration: add pending_alerts table for telegram retry (Phase 3)
+        try:
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS pending_alerts (
+                    id VARCHAR(64) PRIMARY KEY,
+                    chat_id VARCHAR(64) NOT NULL,
+                    text TEXT NOT NULL,
+                    reply_markup TEXT NULL,
+                    retries INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
         except Exception:
             pass
 

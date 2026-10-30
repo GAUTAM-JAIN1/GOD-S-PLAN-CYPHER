@@ -1,3 +1,35 @@
+﻿// ── Offline cache import (only in browser) ────────────────────────────────
+// We use dynamic access so SSR never imports IndexedDB code.
+type OfflineDB = typeof import("./offline/db");
+let _offlineDb: OfflineDB | null = null;
+async function getOfflineDb(): Promise<OfflineDB | null> {
+  if (typeof window === "undefined") return null;
+  if (!_offlineDb) {
+    try {
+      _offlineDb = await import("./offline/db");
+    } catch {
+      _offlineDb = null;
+    }
+  }
+  return _offlineDb;
+}
+
+// â”€â”€ Offline cache import (only in browser) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// We use dynamic access so SSR never imports IndexedDB code.
+type OfflineDB = typeof import("./offline/db");
+let _offlineDb: OfflineDB | null = null;
+async function getOfflineDb(): Promise<OfflineDB | null> {
+  if (typeof window === "undefined") return null;
+  if (!_offlineDb) {
+    try {
+      _offlineDb = await import("./offline/db");
+    } catch {
+      _offlineDb = null;
+    }
+  }
+  return _offlineDb;
+}
+
 export function getApiBase(): string {
   if (typeof window !== "undefined") {
     if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes("127.0.0.1") && !process.env.NEXT_PUBLIC_API_URL.includes("localhost")) {
@@ -124,21 +156,54 @@ export interface HealthResponse {
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
-  const res = await fetch(`${API_BASE}/api/health`);
-  if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
-  return res.json();
+  const db = await getOfflineDb();
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
+    const data: HealthResponse = await res.json();
+    if (db) await db.metaSet("health", data);
+    return data;
+  } catch (err) {
+    if (db) {
+      const cached = await db.metaGet<HealthResponse>("health");
+      if (cached) return cached;
+    }
+    throw err;
+  }
 }
 
 export async function fetchDomains(): Promise<DomainProfile[]> {
-  const res = await fetch(`${API_BASE}/api/domains`);
-  if (!res.ok) throw new Error(`Failed to load domains: ${res.statusText}`);
-  return res.json();
+  const db = await getOfflineDb();
+  try {
+    const res = await fetch(`${API_BASE}/api/domains`);
+    if (!res.ok) throw new Error(`Failed to load domains: ${res.statusText}`);
+    const data: DomainProfile[] = await res.json();
+    if (db) await db.dbPutAll("domains", data);
+    return data;
+  } catch (err) {
+    if (db) {
+      const cached = await db.dbGetAll<DomainProfile>("domains");
+      if (cached.length > 0) return cached;
+    }
+    throw err;
+  }
 }
 
 export async function fetchDomain(domainId: string): Promise<DomainProfile> {
-  const res = await fetch(`${API_BASE}/api/domains/${domainId}`);
-  if (!res.ok) throw new Error(`Domain not found: ${res.statusText}`);
-  return res.json();
+  const db = await getOfflineDb();
+  try {
+    const res = await fetch(`${API_BASE}/api/domains/${domainId}`);
+    if (!res.ok) throw new Error(`Domain not found: ${res.statusText}`);
+    const data: DomainProfile = await res.json();
+    if (db) await db.dbPut("domains", data);
+    return data;
+  } catch (err) {
+    if (db) {
+      const cached = await db.dbGet<DomainProfile>("domains", domainId);
+      if (cached) return cached;
+    }
+    throw err;
+  }
 }
 
 export async function compileDomain(data: {
@@ -148,12 +213,23 @@ export async function compileDomain(data: {
   owner_instructions: string;
   parsed_catalog_text?: string;
 }): Promise<CompileDomainResponse> {
-  const res = await fetch(`${API_BASE}/api/domains/compile`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  return res.json();
+  const idempotency_key = crypto.randomUUID();
+  const payload = { ...data, idempotency_key };
+  try {
+    const res = await fetch(`${API_BASE}/api/domains/compile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Idempotency-Key": idempotency_key },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const { enqueue } = await import("./offline/outbox");
+      await enqueue("/api/domains/compile", "POST", payload as Record<string, unknown>, idempotency_key);
+      return { success: false, domain_id: data.domain_id ?? "", system_prompt: "", first_message: "", catalog_items: [], strict_policies: [], pydantic_literal_code: "", error: "Queued offline" };
+    }
+    throw err;
+  }
 }
 
 export async function uploadCatalogPdf(file: File): Promise<PDFParseResponse> {
@@ -169,11 +245,39 @@ export async function uploadCatalogPdf(file: File): Promise<PDFParseResponse> {
 export async function transcribeAudioScribe(audioBlob: Blob): Promise<ScribeSTTResponse> {
   const formData = new FormData();
   formData.append("file", audioBlob, "voice_prompt.wav");
-  const res = await fetch(`${API_BASE}/api/domains/scribe-stt`, {
-    method: "POST",
-    body: formData,
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/domains/scribe-stt`, {
+      method: "POST",
+      body: formData,
+    });
+    const data: ScribeSTTResponse = await res.json();
+    if (data.success) return data;
+    // Cloud STT failed — try local faster-whisper fallback
+    return await _localSttFallback(audioBlob);
+  } catch {
+    return await _localSttFallback(audioBlob);
+  }
+}
+
+async function _localSttFallback(audioBlob: Blob): Promise<ScribeSTTResponse> {
+  try {
+    const form = new FormData();
+    form.append("file", audioBlob, "voice_prompt.wav");
+    const res = await fetch(`${API_BASE}/api/voice/local-stt`, {
+      method: "POST",
+      body: form,
+    });
+    return await res.json();
+  } catch {
+    return {
+      success: false,
+      transcription: "",
+      confidence: 0,
+      duration_seconds: 0,
+      engine: "none",
+      error: "All STT providers unavailable (cloud + local)",
+    };
+  }
 }
 
 export async function liveRefineAgent(
@@ -280,16 +384,36 @@ export async function commitActionTool(data: {
   caller_name?: string;
   delivery_address?: string;
 }): Promise<CommitActionResult> {
-  const res = await fetch(`${API_BASE}/api/guardrail/commit-action`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || "Action commit failed");
+  const idempotency_key = crypto.randomUUID();
+  const payload = { ...data, idempotency_key };
+
+  // Try network first
+  try {
+    const res = await fetch(`${API_BASE}/api/guardrail/commit-action`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Idempotency-Key": idempotency_key },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || "Action commit failed");
+    }
+    return res.json();
+  } catch (err) {
+    // Queue to outbox when offline
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const { enqueue } = await import("./offline/outbox");
+      await enqueue("/api/guardrail/commit-action", "POST", payload as Record<string, unknown>, idempotency_key);
+      // Return optimistic response so the UI does not hang
+      return {
+        success: true,
+        message: "Queued offline — will sync when online",
+        ledger_id: `offline-${idempotency_key.slice(0, 8)}`,
+        status: "PENDING_SYNC",
+      };
+    }
+    throw err;
   }
-  return res.json();
 }
 
 export async function requestHumanInterventionTool(data: {
@@ -298,13 +422,24 @@ export async function requestHumanInterventionTool(data: {
   caller_utterance?: string;
   session_id?: string;
 }): Promise<{ success: boolean; hold_id: string; message: string }> {
-  const res = await fetch(`${API_BASE}/api/guardrail/request-human-intervention`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error("Failed to request human intervention");
-  return res.json();
+  const idempotency_key = crypto.randomUUID();
+  const payload = { ...data, idempotency_key };
+  try {
+    const res = await fetch(`${API_BASE}/api/guardrail/request-human-intervention`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Idempotency-Key": idempotency_key },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Failed to request human intervention");
+    return res.json();
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const { enqueue } = await import("./offline/outbox");
+      await enqueue("/api/guardrail/request-human-intervention", "POST", payload as Record<string, unknown>, idempotency_key);
+      return { success: true, hold_id: `offline-${idempotency_key.slice(0, 8)}`, message: "Queued offline" };
+    }
+    throw err;
+  }
 }
 
 export interface InterceptHoldItem {
@@ -324,9 +459,20 @@ export interface InterceptHoldItem {
 }
 
 export async function fetchActiveHolds(): Promise<InterceptHoldItem[]> {
-  const res = await fetch(`${API_BASE}/api/guardrail/active-holds`);
-  if (!res.ok) throw new Error("Failed to load active holds");
-  return res.json();
+  const db = await getOfflineDb();
+  try {
+    const res = await fetch(`${API_BASE}/api/guardrail/active-holds`);
+    if (!res.ok) throw new Error("Failed to load active holds");
+    const data: InterceptHoldItem[] = await res.json();
+    if (db) await db.dbPutAll("holds", data);
+    return data;
+  } catch (err) {
+    if (db) {
+      const cached = await db.dbGetAll<InterceptHoldItem>("holds");
+      if (cached.length > 0) return cached;
+    }
+    throw err;
+  }
 }
 
 export async function resolveHold(
@@ -341,18 +487,36 @@ export async function resolveHold(
   resolved_by: string;
   agent_contextual_instruction: string;
 }> {
-  const res = await fetch(`${API_BASE}/api/guardrail/resolve-hold`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hold_id: holdId,
-      resolution_action: action,
-      custom_whisper_text: customWhisper,
-      resolved_by: resolvedBy,
-    }),
-  });
-  if (!res.ok) throw new Error("Failed to resolve hold");
-  return res.json();
+  const idempotency_key = crypto.randomUUID();
+  const payload = {
+    hold_id: holdId,
+    resolution_action: action,
+    custom_whisper_text: customWhisper,
+    resolved_by: resolvedBy,
+    idempotency_key,
+  };
+  try {
+    const res = await fetch(`${API_BASE}/api/guardrail/resolve-hold`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Idempotency-Key": idempotency_key },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Failed to resolve hold");
+    return res.json();
+  } catch (err) {
+    if (typeof window !== "undefined" && !navigator.onLine) {
+      const { enqueue } = await import("./offline/outbox");
+      await enqueue("/api/guardrail/resolve-hold", "POST", payload as Record<string, unknown>, idempotency_key);
+      return {
+        success: true,
+        hold_id: holdId,
+        resolution_action: action,
+        resolved_by: resolvedBy,
+        agent_contextual_instruction: "Queued offline — will sync when online",
+      };
+    }
+    throw err;
+  }
 }
 
 export async function requestHumanIntervention(data: {
@@ -428,15 +592,37 @@ export interface LedgerStatsResponse {
 }
 
 export async function fetchLedgerEntries(): Promise<LedgerEntryItem[]> {
-  const res = await fetch(`${API_BASE}/api/ledger/entries`);
-  if (!res.ok) throw new Error("Failed to load ledger entries");
-  return res.json();
+  const db = await getOfflineDb();
+  try {
+    const res = await fetch(`${API_BASE}/api/ledger/entries`);
+    if (!res.ok) throw new Error("Failed to load ledger entries");
+    const data: LedgerEntryItem[] = await res.json();
+    if (db) await db.dbPutAll("ledger", data);
+    return data;
+  } catch (err) {
+    if (db) {
+      const cached = await db.dbGetAll<LedgerEntryItem>("ledger");
+      if (cached.length > 0) return cached;
+    }
+    throw err;
+  }
 }
 
 export async function fetchLedgerStats(): Promise<LedgerStatsResponse> {
-  const res = await fetch(`${API_BASE}/api/ledger/stats`);
-  if (!res.ok) throw new Error("Failed to load ledger stats");
-  return res.json();
+  const db = await getOfflineDb();
+  try {
+    const res = await fetch(`${API_BASE}/api/ledger/stats`);
+    if (!res.ok) throw new Error("Failed to load ledger stats");
+    const data: LedgerStatsResponse = await res.json();
+    if (db) await db.metaSet("ledger_stats", data);
+    return data;
+  } catch (err) {
+    if (db) {
+      const cached = await db.metaGet<LedgerStatsResponse>("ledger_stats");
+      if (cached) return cached;
+    }
+    throw err;
+  }
 }
 
 export async function fetchLedgerInspector(sessionId: string): Promise<any> {
