@@ -1535,7 +1535,7 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
         system_prompt=grounded_system_prompt,
         user_utterance=req.user_utterance,
         conversation_history=history,
-        max_tokens=75,
+        max_tokens=45,
         temperature=0.25
     )
 
@@ -1559,8 +1559,10 @@ CRITICAL CONVERSATIONAL & ACCURACY LAWS:
 @app.post("/api/gauntlet/run", response_model=GauntletRunResponse)
 async def run_gauntlet_endpoint(req: GauntletRunRequest):
     try:
-        result = await gauntlet_runner_service.run_gauntlet(
+        from backend.services.crew_gauntlet import crew_gauntlet_service
+        result = await crew_gauntlet_service.run_crew_gauntlet(
             domain_id=req.domain_id,
+            selected_suites=req.selected_suites,
             force_vulnerability_demo=req.force_vulnerability_demo,
             broadcast_func=ws_manager.broadcast
         )
@@ -1573,7 +1575,8 @@ async def run_gauntlet_endpoint(req: GauntletRunRequest):
 
 @app.get("/api/gauntlet/latest")
 async def get_latest_gauntlet_endpoint(domain_id: str):
-    res = await gauntlet_runner_service.get_latest_run(domain_id)
+    from backend.services.crew_gauntlet import crew_gauntlet_service
+    res = await crew_gauntlet_service.get_latest_run(domain_id)
     if not res:
         return {"has_run": False, "domain_id": domain_id, "message": "No previous gauntlet run found."}
     return {"has_run": True, **res.model_dump()}

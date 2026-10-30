@@ -65,7 +65,7 @@ def get_groq_client() -> Optional[Groq]:
     return None
 
 _cached_groq_model: Optional[str] = None
-_cached_fast_groq_model: Optional[str] = "qwen/qwen3.8-27b"
+_cached_fast_groq_model: Optional[str] = None
 
 def get_best_groq_model(client: Optional[Groq] = None) -> str:
     global _cached_groq_model
@@ -113,9 +113,9 @@ def get_fast_groq_model(client: Optional[Groq] = None) -> str:
         return _cached_fast_groq_model
 
     fast_candidates = [
-        "qwen/qwen3.8-27b",
         "llama-3.1-8b-instant",
-        "llama3-8b-8192",
+        "llama-3.3-70b-versatile",
+        "qwen/qwen3.8-27b",
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "allam-2-7b"
@@ -137,7 +137,7 @@ def get_fast_groq_model(client: Optional[Groq] = None) -> str:
         except Exception as e:
             logger.warning(f"Could not list fast Groq models: {e}")
 
-    _cached_fast_groq_model = "qwen/qwen3.8-27b"
+    _cached_fast_groq_model = "llama-3.1-8b-instant"
     return _cached_fast_groq_model
 
 def generate_pydantic_literal_code(domain_name: str, items: List[CatalogItem]) -> str:

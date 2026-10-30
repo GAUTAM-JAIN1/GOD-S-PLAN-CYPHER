@@ -96,6 +96,7 @@ class PDFParseResponse(BaseModel):
 
 class GauntletScenarioResult(BaseModel):
     scenario_id: int
+    suite_id: Optional[str] = None
     title: str
     attack_vector: str
     attacker_utterance: str
@@ -112,6 +113,7 @@ class GauntletScenarioResult(BaseModel):
 class GauntletRunRequest(BaseModel):
     domain_id: str
     force_vulnerability_demo: bool = True
+    selected_suites: Optional[List[str]] = None
 
 class GauntletRunResponse(BaseModel):
     success: bool

@@ -67,6 +67,7 @@ async def call_groq_agent_turn(
 
     try:
         fast_model = get_fast_groq_model(client)
+        t_llm0 = time.perf_counter()
         completion = await asyncio.to_thread(
             client.chat.completions.create,
             model=fast_model,
@@ -74,7 +75,7 @@ async def call_groq_agent_turn(
             temperature=temperature,
             max_tokens=max_tokens
         )
-        latency_ms = max(1, int((time.perf_counter() - t0) * 1000))
+        latency_ms = max(1, int((time.perf_counter() - t_llm0) * 1000))
         resp_text = (completion.choices[0].message.content or "").strip()
 
         # Clean any internal formatting or tool syntax

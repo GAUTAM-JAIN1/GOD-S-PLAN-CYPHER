@@ -110,7 +110,13 @@ class BrutalShieldManager:
         except Exception as e:
             logger.error(f"Failed to log shield termination to SQLite: {e}")
 
-    def check_brutal_shield(self, session_id: str, utterance: str, domain_id: str = "") -> Dict[str, Any]:
+    def check_brutal_shield(
+        self,
+        session_id: str,
+        utterance: str,
+        domain_id: str = "",
+        bypass_flood_check: bool = False
+    ) -> Dict[str, Any]:
         """
         0ms Pre-LLM Security Gate.
         Returns: { 'blocked': bool, 'status': str, 'reason': str, 'call_terminated': bool, 'reply': str }
@@ -126,28 +132,29 @@ class BrutalShieldManager:
                 "reply": "Call has been terminated by the security shield."
             }
 
-        # 1. Rate Velocity / Flood Check: > 3 requests in 4.0 seconds
-        dq = self.session_timestamps[session_id]
-        # Purge timestamps older than 4.0s
-        while dq and (now - dq[0]) > 4.0:
-            dq.popleft()
-        dq.append(now)
+        # 1. Rate Velocity / Flood Check: > 3 requests in 4.0 seconds (Unless bypassed in multi-turn test loops)
+        if not bypass_flood_check:
+            dq = self.session_timestamps[session_id]
+            # Purge timestamps older than 4.0s
+            while dq and (now - dq[0]) > 4.0:
+                dq.popleft()
+            dq.append(now)
 
-        if len(dq) > 3:
-            self.blacklisted_sessions.add(session_id)
-            self.log_shield_termination_to_db(
-                session_id=session_id,
-                domain_id=domain_id,
-                reason="High-velocity request spam (>3 reqs in 4.0s)",
-                action="TERMINATED BY SHIELD"
-            )
-            return {
-                "blocked": True,
-                "status": "FLOOD_BLOCKED",
-                "reason": "RAPID_FIRE_FLOOD_ATTACK",
-                "call_terminated": True,
-                "reply": "Call terminated: Flood attack rate limit exceeded."
-            }
+            if len(dq) > 3:
+                self.blacklisted_sessions.add(session_id)
+                self.log_shield_termination_to_db(
+                    session_id=session_id,
+                    domain_id=domain_id,
+                    reason="High-velocity request spam (>3 reqs in 4.0s)",
+                    action="TERMINATED BY SHIELD"
+                )
+                return {
+                    "blocked": True,
+                    "status": "FLOOD_BLOCKED",
+                    "reason": "RAPID_FIRE_FLOOD_ATTACK",
+                    "call_terminated": True,
+                    "reply": "Call terminated: Flood attack rate limit exceeded."
+                }
 
         # 2. Prompt Injection Scanner
         clean = utterance.strip().lower()
